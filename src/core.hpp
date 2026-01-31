@@ -71,6 +71,8 @@ private:
 	VkQueue m_presentQueue{ nullptr };
 
 	void createSwapChain(void);
+	void cleanupSwapChain(void);
+	void recreateSwapChain(void);
 	VkSwapchainKHR m_swapChain{ nullptr };
 	VkSurfaceCapabilitiesKHR m_swapChainCapabilities{};
 	VkSurfaceFormatKHR m_swapChainSurfaceFormat{};
@@ -102,6 +104,7 @@ private:
 	std::vector<VkSemaphore> m_presentSemaphores{};
 	std::vector<VkFence> m_inFlightFences{};
 	uint32_t m_currentFrame{ 0 };
+	bool m_framebufferResized{ false };
 
 	void drawFrame(void);
 

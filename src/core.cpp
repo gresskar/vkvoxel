@@ -11,7 +11,6 @@
 #include <algorithm>
 #include <fstream>
 #include <limits>
-#include <print>
 #include <stdexcept>
 #include <vector>
 
@@ -24,7 +23,7 @@ void Core::createWindow(void)
 	}
 
 	/* Create a Vulkan-compatible SDL window */
-	m_window = SDL_CreateWindow("VKVoxel", WIDTH, HEIGHT, SDL_WINDOW_VULKAN);
+	m_window = SDL_CreateWindow("VKVoxel", WIDTH, HEIGHT, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
 	if (!m_window)
 	{
@@ -42,10 +41,17 @@ void Core::mainLoop(void)
 		/* Handle input */
 		while (SDL_PollEvent(&event))
 		{
+			/* Exit the application if the user requested it, e.g. when the 'X' on the title bar is clicked, or Alt+F4 is pressed */
 			if (event.type == SDL_EVENT_QUIT)
 			{
 				should_run = false;
 				break;
+			}
+
+			/* Recreate the swap chain if the window is resized or minimized */
+			if (event.window.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || event.window.type == SDL_EVENT_WINDOW_MINIMIZED)
+			{
+				m_framebufferResized = true;
 			}
 		}
 
@@ -55,7 +61,10 @@ void Core::mainLoop(void)
 		drawFrame();
 		
 		/* Wait for the device to finish what it's doing before proceeding */
-		vkDeviceWaitIdle(m_device);
+		if (vkDeviceWaitIdle(m_device) != VK_SUCCESS)
+		{
+			throw std::runtime_error("vkDeviceWaitIdle() faile!");
+		}
 	}
 }
 
@@ -364,6 +373,31 @@ void Core::createSwapChain(void)
 	vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, nullptr);
 	m_swapChainImages.resize(imageCount);
 	vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, m_swapChainImages.data());
+}
+
+void Core::cleanupSwapChain(void)
+{
+	for (auto imageView : m_swapChainImageViews)
+	{
+		vkDestroyImageView(m_device, imageView, nullptr);
+		imageView = nullptr;
+	}
+
+	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
+	m_swapChain = nullptr;
+}
+
+void Core::recreateSwapChain(void)
+{
+	if (vkDeviceWaitIdle(m_device) != VK_SUCCESS)
+	{
+		throw std::runtime_error("vkDeviceWaitIdle() failed!");
+	}
+
+	cleanupSwapChain();
+
+	createSwapChain();
+    createImageViews();
 }
 
 void Core::createImageViews(void)
@@ -908,17 +942,25 @@ void Core::drawFrame(void)
 		throw std::runtime_error("vkWaitForFences() failed!");
 	}
 
-	if (vkResetFences(m_device, 1, &m_inFlightFences.at(m_currentFrame)) != VK_SUCCESS)
-	{
-		throw std::runtime_error("vkResetFences() failed!");
-	}
-
 	/* Acquire an image from the swap chain */
 	uint32_t imageIndex = 0;
 
-	if (vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, m_presentSemaphores.at(m_currentFrame), VK_NULL_HANDLE, &imageIndex) != VK_SUCCESS)
+	VkResult result = vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, m_presentSemaphores.at(m_currentFrame), VK_NULL_HANDLE, &imageIndex);
+	
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
-		throw std::runtime_error("vkAcquireNextImageKHR() failed!");
+    	recreateSwapChain();
+    	return;
+	}
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+	{
+	    throw std::runtime_error("vkAcquireNextImageKHR() failed!");
+	}
+
+	/* Reset fence after acquiring image to prevent deadlock */
+	if (vkResetFences(m_device, 1, &m_inFlightFences.at(m_currentFrame)) != VK_SUCCESS)
+	{
+		throw std::runtime_error("vkResetFences() failed!");
 	}
 
 	/* Record a command buffer which draws the scene onto that image */
@@ -956,18 +998,17 @@ void Core::drawFrame(void)
 		.pResults = nullptr,
 	};
 
-	const VkResult result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
+	/*VkResult*/ result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
 
-	switch (result)
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized)
 	{
-		case VK_SUCCESS:
-			break;
-		case VK_SUBOPTIMAL_KHR:
-			std::println("vkQueuePresentKHR() returned with VK_SUBOPTIMAL_KHR!");
-			break;
-		default:
-			std::println("vkQueuePresentKHR() returned with an unexpected result!");
-			break;
+		m_framebufferResized = false;
+    	recreateSwapChain();
+	}
+	else if (result != VK_SUCCESS)
+	{
+    	throw std::runtime_error("vkQueuePresentKHR() failed!");
 	}
 
 	/* Move the current frame index */
@@ -1001,14 +1042,7 @@ void Core::cleanup(void)
 	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
 	m_pipelineLayout = nullptr;
 
-	for (auto imageView : m_swapChainImageViews)
-	{
-		vkDestroyImageView(m_device, imageView, nullptr);
-		imageView = nullptr;
-	}
-
-	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
-	m_swapChain = nullptr;
+	cleanupSwapChain();
 
 	vkDestroyDevice(m_device, nullptr);
 	m_device = nullptr;
