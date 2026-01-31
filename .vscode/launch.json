@@ -1,0 +1,13 @@
+{
+    "configurations": [
+    {
+        "type": "lldb-dap",
+        "request": "launch",
+        "name": "LLDB",
+        "program": "${workspaceFolder}/bin/Debug/vkvoxel",
+        "args": [],
+        "env": ["ASAN_OPTIONS=detect_leaks=0", "SDL_VIDEO_DRIVER=x11"],
+        "cwd": "${workspaceFolder}"
+    }
+    ]
+}
