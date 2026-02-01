@@ -1,5 +1,5 @@
 #define VOLK_IMPLEMENTATION
-#include <volk.h>
+#include <volk/volk.h>
 
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_video.h>
@@ -82,7 +82,7 @@ void Core::createInstance(void)
 	/* Define some information about our application, such as its name & version */
 	const VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.pApplicationName = "VKVoxel",
 		.applicationVersion = VK_MAKE_VERSION(1, 0, 0),
 		.pEngineName = "No Engine",
@@ -102,7 +102,7 @@ void Core::createInstance(void)
 	/* Which extensions do we need for using SDL? */
 	uint32_t sdlExtensionCount = 0;
 	auto sdlExtensions = SDL_Vulkan_GetInstanceExtensions(&sdlExtensionCount);
-	if (sdlExtensions == nullptr)
+	if (!sdlExtensions)
 	{
 		throw std::runtime_error("SDL_Vulkan_GetInstanceExtensions() failed: " + std::string(SDL_GetError()));
 	}
@@ -112,7 +112,7 @@ void Core::createInstance(void)
 	/* Define some information about our instance, such as which layers and extensions we need */
 	const VkInstanceCreateInfo createInfo = {
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.pApplicationInfo = &appInfo,
 		.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size()),
@@ -122,7 +122,7 @@ void Core::createInstance(void)
 	};
 
 	/* Create the instance */
-	if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS)
+	if (vkCreateInstance(&createInfo, VK_NULL_HANDLE, &m_instance) != VK_SUCCESS)
 	{
 		throw std::runtime_error("vkCreateInstance() failed!");
 	}
@@ -134,7 +134,7 @@ void Core::createInstance(void)
 void Core::createSurface(void)
 {
 	/* Create a Vulkan surface for our window */
-	if (!SDL_Vulkan_CreateSurface(m_window, m_instance, nullptr, &m_surface))
+	if (!SDL_Vulkan_CreateSurface(m_window, m_instance, VK_NULL_HANDLE, &m_surface))
 	{
 		throw std::runtime_error("SDL_Vulkan_CreateSurface() failed: " + std::string(SDL_GetError()));
 	}
@@ -144,7 +144,7 @@ void Core::pickPhysicalDevice(void)
 {
 	/* Enumerate all Vulkan-compatible GPUs */
 	uint32_t physicalDeviceCount = 0;
-	vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, nullptr);
+	vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, VK_NULL_HANDLE);
 	std::vector<VkPhysicalDevice> physicalDevices(physicalDeviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, physicalDevices.data());
 
@@ -168,9 +168,9 @@ void Core::pickPhysicalDevice(void)
 
 		/* Get the GPU's supported extensions */
 		uint32_t extensionCount = 0;
-		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
+		vkEnumerateDeviceExtensionProperties(physicalDevice, VK_NULL_HANDLE, &extensionCount, VK_NULL_HANDLE);
 		std::vector<VkExtensionProperties> extensions(extensionCount);
-		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, extensions.data());
+		vkEnumerateDeviceExtensionProperties(physicalDevice, VK_NULL_HANDLE, &extensionCount, extensions.data());
 
 		/* Get the GPU's queue family properties */
 		uint32_t queueFamilyPropertyCount = 0;
@@ -207,7 +207,7 @@ void Core::pickPhysicalDevice(void)
 	}
 
 	/* Double check to make sure a GPU was actually picked */
-	if (m_physicalDevice == nullptr)
+	if (m_physicalDevice == VK_NULL_HANDLE)
 	{
 		throw std::runtime_error("No Vulkan-compatible GPU was picked!");
 	}
@@ -219,7 +219,7 @@ void Core::createLogicalDevice(void)
 	constexpr float queuePriorities = 1.0f;
 	const VkDeviceQueueCreateInfo queueCreateInfo = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.queueFamilyIndex = 0, // TODO: find this
 		.queueCount = 1,
@@ -231,7 +231,7 @@ void Core::createLogicalDevice(void)
 
 	VkPhysicalDeviceSynchronization2Features synchronization2_features = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.synchronization2 = VK_TRUE,
 	};
 
@@ -255,13 +255,13 @@ void Core::createLogicalDevice(void)
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &queueCreateInfo,
 		.enabledLayerCount = 0,
-		.ppEnabledLayerNames = nullptr,
+		.ppEnabledLayerNames = VK_NULL_HANDLE,
 		.enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtension.size()),
 		.ppEnabledExtensionNames = requiredDeviceExtension.data(),
 		.pEnabledFeatures = &deviceFeatures.features, // TODO: fill this out
 	};
 
-	if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS)
+	if (vkCreateDevice(m_physicalDevice, &createInfo, VK_NULL_HANDLE, &m_device) != VK_SUCCESS)
 	{
 		throw std::runtime_error("vkCreateDevice() failed!");
 	}
@@ -299,7 +299,7 @@ void Core::createSwapChain(void)
 
 	/* Get swap chain surface format (pixel format & color space) */
 	uint32_t availableSurfaceFormatCount = 0;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableSurfaceFormatCount, nullptr);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableSurfaceFormatCount, VK_NULL_HANDLE);
 	std::vector<VkSurfaceFormatKHR> availableSurfaceFormats(availableSurfaceFormatCount);
 	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableSurfaceFormatCount, availableSurfaceFormats.data());
 	
@@ -318,7 +318,7 @@ void Core::createSwapChain(void)
 
 	/* Get swap chain present mode (triple-buffering, vsync, primitive) */
 	uint32_t availablePresentModeCount = 0;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availablePresentModeCount, nullptr);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availablePresentModeCount, VK_NULL_HANDLE);
 	std::vector<VkPresentModeKHR> availablePresentModes{};
 	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availablePresentModeCount, availablePresentModes.data());
 
@@ -344,7 +344,7 @@ void Core::createSwapChain(void)
 	//const std::array<uint32_t, 2> queueFamilyIndices = { 0, 1 };
 	const VkSwapchainCreateInfoKHR createInfo = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.surface = m_surface,
 		.minImageCount = imageCount,
@@ -355,22 +355,22 @@ void Core::createSwapChain(void)
 		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE, // or VK_SHARING_MODE_CONCURRENT, depending on if graphicsFamily == presentFamily
 		.queueFamilyIndexCount = 0, // 2 if imageSharingMode is CONCURRENT, 0 if EXCLUSIVE
-		.pQueueFamilyIndices = nullptr, // queueFamilyIndices if CONCURRENT, nullptr if EXCLUSIVE
+		.pQueueFamilyIndices = VK_NULL_HANDLE, // queueFamilyIndices if CONCURRENT, VK_NULL_HANDLE if EXCLUSIVE
 		.preTransform = m_swapChainCapabilities.currentTransform,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		.presentMode = m_swapChainPresentMode,
 		.clipped = VK_TRUE,
-		.oldSwapchain = nullptr,
+		.oldSwapchain = VK_NULL_HANDLE,
 	};
 
 	/* Create swap chain */
-	if (vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapChain) != VK_SUCCESS)
+	if (vkCreateSwapchainKHR(m_device, &createInfo, VK_NULL_HANDLE, &m_swapChain) != VK_SUCCESS)
 	{
 		throw std::runtime_error("vkCreateSwapchainKHR() failed!");
 	}
 
 	/* Get presentable images associated with our swap chain */
-	vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, nullptr);
+	vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, VK_NULL_HANDLE);
 	m_swapChainImages.resize(imageCount);
 	vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, m_swapChainImages.data());
 }
@@ -379,12 +379,12 @@ void Core::cleanupSwapChain(void)
 {
 	for (auto imageView : m_swapChainImageViews)
 	{
-		vkDestroyImageView(m_device, imageView, nullptr);
-		imageView = nullptr;
+		vkDestroyImageView(m_device, imageView, VK_NULL_HANDLE);
+		imageView = VK_NULL_HANDLE;
 	}
 
-	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
-	m_swapChain = nullptr;
+	vkDestroySwapchainKHR(m_device, m_swapChain, VK_NULL_HANDLE);
+	m_swapChain = VK_NULL_HANDLE;
 }
 
 void Core::recreateSwapChain(void)
@@ -409,7 +409,7 @@ void Core::createImageViews(void)
 	{
 		const VkImageViewCreateInfo createInfo = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.pNext = nullptr,
+			.pNext = VK_NULL_HANDLE,
 			.flags = 0,
 			.image = m_swapChainImages.at(i),
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -429,7 +429,7 @@ void Core::createImageViews(void)
 			},
 		};
 
-		if (vkCreateImageView(m_device, &createInfo, nullptr, &m_swapChainImageViews.at(i)) != VK_SUCCESS)
+		if (vkCreateImageView(m_device, &createInfo, VK_NULL_HANDLE, &m_swapChainImageViews.at(i)) != VK_SUCCESS)
 		{
 			throw std::runtime_error("vkCreateImageView() failed!");
 		}
@@ -466,13 +466,13 @@ void Core::createImageViews(void)
 
 	const VkShaderModuleCreateInfo createInfo = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.codeSize = shaderCode.size(),
 		.pCode = reinterpret_cast<const uint32_t *>(shaderCode.data()),
 	};
 
-	if (vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+	if (vkCreateShaderModule(m_device, &createInfo, VK_NULL_HANDLE, &shaderModule) != VK_SUCCESS) {
     	throw std::runtime_error("vkCreateShaderModule() failed!");
 	}
 
@@ -489,7 +489,7 @@ void Core::createGraphicsPipeline(void)
 
 	const VkPipelineDynamicStateCreateInfo dynamicState = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
 		.pDynamicStates = dynamicStates.data(),
@@ -512,7 +512,7 @@ void Core::createGraphicsPipeline(void)
 
 	const VkPipelineViewportStateCreateInfo viewportCreateInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.viewportCount = 1,
 		.pViewports = &viewport,
@@ -523,18 +523,18 @@ void Core::createGraphicsPipeline(void)
 	/* Vertex input - TODO: change this when vertices are no longer hardcoded in the vertex shader */
 	const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.vertexBindingDescriptionCount = 0,
-		.pVertexBindingDescriptions = nullptr,
+		.pVertexBindingDescriptions = VK_NULL_HANDLE,
 		.vertexAttributeDescriptionCount = 0,
-		.pVertexAttributeDescriptions = nullptr,
+		.pVertexAttributeDescriptions = VK_NULL_HANDLE,
 	};
 
 	/* Input assembly */
 	const VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 		.primitiveRestartEnable = VK_FALSE,
@@ -545,18 +545,18 @@ void Core::createGraphicsPipeline(void)
 
 	const VkPipelineShaderStageCreateInfo vertShaderStageInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.stage = VK_SHADER_STAGE_VERTEX_BIT,
 		.module = vertShaderModule,
 		.pName = "vertMain",
-		.pSpecializationInfo = nullptr,
+		.pSpecializationInfo = VK_NULL_HANDLE,
 	};
 
 	/* Rasterizer */
 	const VkPipelineRasterizationStateCreateInfo rasterizer = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.depthClampEnable = VK_FALSE,
 		.rasterizerDiscardEnable = VK_FALSE,
@@ -573,12 +573,12 @@ void Core::createGraphicsPipeline(void)
 	/* Multisampling */
 	const VkPipelineMultisampleStateCreateInfo multisampler = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
 		.sampleShadingEnable = VK_FALSE,
 		.minSampleShading = 1.0f,
-		.pSampleMask = nullptr,
+		.pSampleMask = VK_NULL_HANDLE,
 		.alphaToCoverageEnable = VK_FALSE,
 		.alphaToOneEnable = VK_FALSE,
 	};
@@ -586,7 +586,7 @@ void Core::createGraphicsPipeline(void)
 	/* Depth and stencil testing
 	const VkPipelineDepthStencilStateCreateInfo depthStencil = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.depthTestEnable = 0,
 		.depthWriteEnable = 0,
@@ -614,7 +614,7 @@ void Core::createGraphicsPipeline(void)
 
 	const VkPipelineColorBlendStateCreateInfo colorBlending = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.logicOpEnable = VK_FALSE,
 		.logicOp = VK_LOGIC_OP_COPY,
@@ -628,12 +628,12 @@ void Core::createGraphicsPipeline(void)
 
 	const VkPipelineShaderStageCreateInfo fragShaderStageInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 		.module = fragShaderModule,
 		.pName = "fragMain",
-		.pSpecializationInfo = nullptr,
+		.pSpecializationInfo = VK_NULL_HANDLE,
 	};
 
 	/* Shader stages */
@@ -642,15 +642,15 @@ void Core::createGraphicsPipeline(void)
 	/* Pipeline layout */
 	const VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.setLayoutCount = 0,
-		.pSetLayouts = nullptr,
+		.pSetLayouts = VK_NULL_HANDLE,
 		.pushConstantRangeCount = 0,
-		.pPushConstantRanges = nullptr,
+		.pPushConstantRanges = VK_NULL_HANDLE,
 	};
 
-	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, VK_NULL_HANDLE, &m_pipelineLayout) != VK_SUCCESS)
 	{
     	throw std::runtime_error("vkCreatePipelineLayout() failed!");
 	}
@@ -658,7 +658,7 @@ void Core::createGraphicsPipeline(void)
 	/* Create pipeline */
 	const VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.viewMask = 0,
 		.colorAttachmentCount = 1,
 		.pColorAttachmentFormats = &m_swapChainImageFormat,
@@ -674,40 +674,40 @@ void Core::createGraphicsPipeline(void)
 		.pStages = shaderStages.data(),
 		.pVertexInputState = &vertexInputInfo,
 		.pInputAssemblyState = &inputAssemblyInfo,
-		.pTessellationState = nullptr,
+		.pTessellationState = VK_NULL_HANDLE,
 		.pViewportState = &viewportCreateInfo,
 		.pRasterizationState = &rasterizer,
 		.pMultisampleState = &multisampler,
-		.pDepthStencilState = nullptr,
+		.pDepthStencilState = VK_NULL_HANDLE,
 		.pColorBlendState = &colorBlending,
 		.pDynamicState = &dynamicState,
 		.layout = m_pipelineLayout,
-		.renderPass = nullptr,
+		.renderPass = VK_NULL_HANDLE,
 		.subpass = 0,
-		.basePipelineHandle = nullptr,
+		.basePipelineHandle = VK_NULL_HANDLE,
 		.basePipelineIndex = -1,
 	};
 
-	if (vkCreateGraphicsPipelines(m_device, nullptr, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) != VK_SUCCESS)
+	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, VK_NULL_HANDLE, &m_graphicsPipeline) != VK_SUCCESS)
 	{
 		throw std::runtime_error("VkGraphicsPipelineCreateInfo() failed!");
 	}
 
 	/* Clean up */
-	vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, fragShaderModule, VK_NULL_HANDLE);
+    vkDestroyShaderModule(m_device, vertShaderModule, VK_NULL_HANDLE);
 }
 
 void Core::createCommandPool(void)
 {
 	const VkCommandPoolCreateInfo createInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		.queueFamilyIndex = 0, // TODO: use graphics family queue index
 	};
 
-	if (vkCreateCommandPool(m_device, &createInfo, nullptr, &m_cmdPool) != VK_SUCCESS)
+	if (vkCreateCommandPool(m_device, &createInfo, VK_NULL_HANDLE, &m_cmdPool) != VK_SUCCESS)
 	{
 		throw std::runtime_error("vkCreateCommandPool() failed!");
 	}
@@ -720,7 +720,7 @@ void Core::createCommandBuffers(void)
 
 	const VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.commandPool = m_cmdPool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = static_cast<uint32_t>(m_cmdBuffers.size()),
@@ -745,7 +745,7 @@ void Core::transition_image_layout
 {
 	const VkImageMemoryBarrier2 barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
         .srcStageMask = srcStageMask,
         .srcAccessMask = srcAccessMask,
         .dstStageMask = dstStageMask,
@@ -766,12 +766,12 @@ void Core::transition_image_layout
 
 	const VkDependencyInfo dependencyInfo = {
 		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
         .dependencyFlags = {},
 		.memoryBarrierCount = 0,
-		.pMemoryBarriers = nullptr,
+		.pMemoryBarriers = VK_NULL_HANDLE,
 		.bufferMemoryBarrierCount = 0,
-		.pBufferMemoryBarriers = nullptr,
+		.pBufferMemoryBarriers = VK_NULL_HANDLE,
         .imageMemoryBarrierCount = 1,
         .pImageMemoryBarriers = &barrier,
 	};
@@ -786,9 +786,9 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
 	/* Begin command buffer */
 	const VkCommandBufferBeginInfo beginInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
-		.pInheritanceInfo = nullptr,
+		.pInheritanceInfo = VK_NULL_HANDLE,
 	};
 
 	vkBeginCommandBuffer(cmdBuffer, &beginInfo);
@@ -809,11 +809,11 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
 	
 	const VkRenderingAttachmentInfo colorAttachment = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.imageView = m_swapChainImageViews.at(imageIndex),
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.resolveMode = VK_RESOLVE_MODE_NONE,
-		.resolveImageView = nullptr,
+		.resolveImageView = VK_NULL_HANDLE,
 		.resolveImageLayout = {},
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -823,7 +823,7 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
 	/* Rendering info */
 	const VkRenderingInfo renderingInfo = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
 		.renderArea = {
 			.offset = { .x = 0, .y = 0 },
@@ -833,8 +833,8 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
 		.viewMask = 0,
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &colorAttachment,
-		.pDepthAttachment = nullptr,
-		.pStencilAttachment = nullptr,
+		.pDepthAttachment = VK_NULL_HANDLE,
+		.pStencilAttachment = VK_NULL_HANDLE,
 	};
 
 	/* Begin rendering */
@@ -896,11 +896,11 @@ void Core::createSyncObjects(void)
 		/* Create semaphores for our graphics queue */
 		constexpr VkSemaphoreCreateInfo semaphoreCreateInfo = {
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.pNext = nullptr,
+			.pNext = VK_NULL_HANDLE,
 			.flags = 0,
 		};
 
-		if (vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_graphicsSemaphores.at(i)) != VK_SUCCESS)
+		if (vkCreateSemaphore(m_device, &semaphoreCreateInfo, VK_NULL_HANDLE, &m_graphicsSemaphores.at(i)) != VK_SUCCESS)
 		{
 			throw std::runtime_error("vkCreateSemaphore() failed!");
 		}
@@ -911,11 +911,11 @@ void Core::createSyncObjects(void)
 		/* Create semaphores for our presentation queue */
 		constexpr VkSemaphoreCreateInfo semaphoreCreateInfo = {
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.pNext = nullptr,
+			.pNext = VK_NULL_HANDLE,
 			.flags = 0,
 		};
 
-		if (vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_presentSemaphores.at(i)) != VK_SUCCESS)
+		if (vkCreateSemaphore(m_device, &semaphoreCreateInfo, VK_NULL_HANDLE, &m_presentSemaphores.at(i)) != VK_SUCCESS)
 		{
 			throw std::runtime_error("vkCreateSemaphore() failed!");
 		}
@@ -923,11 +923,11 @@ void Core::createSyncObjects(void)
 		/* Create fences for our frames in flight */
 		constexpr VkFenceCreateInfo fenceCreateInfo = {
 			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-			.pNext = nullptr,
+			.pNext = VK_NULL_HANDLE,
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT
 		};
 
-		if (vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_inFlightFences.at(i)) != VK_SUCCESS)
+		if (vkCreateFence(m_device, &fenceCreateInfo, VK_NULL_HANDLE, &m_inFlightFences.at(i)) != VK_SUCCESS)
 		{
 			throw std::runtime_error("vkCreateFence() failed!");
 		}
@@ -971,7 +971,7 @@ void Core::drawFrame(void)
 	const VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	const VkSubmitInfo submitInfo = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = &m_presentSemaphores.at(m_currentFrame),
 		.pWaitDstStageMask = &waitStages,
@@ -989,13 +989,13 @@ void Core::drawFrame(void)
 	/* Present the swap chain image */
 	const VkPresentInfoKHR presentInfo = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-		.pNext = nullptr,
+		.pNext = VK_NULL_HANDLE,
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = &m_graphicsSemaphores.at(m_currentFrame),
 		.swapchainCount = 1,
 		.pSwapchains = &m_swapChain,
 		.pImageIndices = &imageIndex,
-		.pResults = nullptr,
+		.pResults = VK_NULL_HANDLE,
 	};
 
 	/*VkResult*/ result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
@@ -1020,38 +1020,38 @@ void Core::cleanup(void)
 	/* Clean up Vulkan stuff */
 	for (size_t i = 0; i < m_swapChainImages.size(); i++)
 	{
-		vkDestroySemaphore(m_device, m_graphicsSemaphores.at(i), nullptr);
-		m_graphicsSemaphores.at(i) = nullptr;
+		vkDestroySemaphore(m_device, m_graphicsSemaphores.at(i), VK_NULL_HANDLE);
+		m_graphicsSemaphores.at(i) = VK_NULL_HANDLE;
 	}
 
 	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		vkDestroySemaphore(m_device, m_presentSemaphores.at(i), nullptr);
-		m_presentSemaphores.at(i) = nullptr;
+		vkDestroySemaphore(m_device, m_presentSemaphores.at(i), VK_NULL_HANDLE);
+		m_presentSemaphores.at(i) = VK_NULL_HANDLE;
 
-		vkDestroyFence(m_device, m_inFlightFences.at(i), nullptr);
-		m_inFlightFences.at(i) = nullptr;
+		vkDestroyFence(m_device, m_inFlightFences.at(i), VK_NULL_HANDLE);
+		m_inFlightFences.at(i) = VK_NULL_HANDLE;
 	}
 
-	vkDestroyCommandPool(m_device, m_cmdPool, nullptr);
-	m_cmdPool = nullptr;
+	vkDestroyCommandPool(m_device, m_cmdPool, VK_NULL_HANDLE);
+	m_cmdPool = VK_NULL_HANDLE;
 
-	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-	m_graphicsPipeline = nullptr;
+	vkDestroyPipeline(m_device, m_graphicsPipeline, VK_NULL_HANDLE);
+	m_graphicsPipeline = VK_NULL_HANDLE;
 
-	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-	m_pipelineLayout = nullptr;
+	vkDestroyPipelineLayout(m_device, m_pipelineLayout, VK_NULL_HANDLE);
+	m_pipelineLayout = VK_NULL_HANDLE;
 
 	cleanupSwapChain();
 
-	vkDestroyDevice(m_device, nullptr);
-	m_device = nullptr;
+	vkDestroyDevice(m_device, VK_NULL_HANDLE);
+	m_device = VK_NULL_HANDLE;
 
-	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-	m_surface = nullptr;
+	vkDestroySurfaceKHR(m_instance, m_surface, VK_NULL_HANDLE);
+	m_surface = VK_NULL_HANDLE;
 
-	vkDestroyInstance(m_instance, nullptr);
-	m_instance = nullptr;
+	vkDestroyInstance(m_instance, VK_NULL_HANDLE);
+	m_instance = VK_NULL_HANDLE;
 
 	/* Clean up SDL stuff */
 	SDL_DestroyWindow(m_window);

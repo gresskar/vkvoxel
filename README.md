@@ -27,11 +27,33 @@ Voxel-engine written in C++ and Vulkan
 | GCC | `gcc` | `gcc` | `gcc` | `sys-devel/gcc` | C compiler |
 | G++ | `g++` | `g++` | `gcc` | `sys-devel/gcc` | C++ compiler |
 | SDL3 | `libsdl3-dev` | `SDL3-devel` | `sdl3` | `media-libs/libsdl3` | Window & input system |
-| Vulkan headers | `libvulkan-dev` | `vulkan-headers` | `vulkan-headers` | `dev-util/vulkan-headers` | Vulkan header files |
-| Vulkan layers | `vulkan-validationlayers` | `vulkan-validation-layers` | `vulkan-validation-layers` | `media-libs/vulkan-layers` | Vulkan validation layers |
-| Volk dev | `libvulkan-volk-dev` | `vulkan-volk-devel` | `volk` | N/A | Meta loader for Vulkan |
 | GLM | `libglm-dev` | `glm-devel` | `glm` | `media-libs/glm` | Mathematics library
-| Slangc | N/A | N/A | N/A | N/A | Slang shader compiler (*download **[here](https://github.com/shader-slang/slang/releases)***)
+
+You must also install the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home#linux):
+
+```Bash
+sudo curl https://sdk.lunarg.com/sdk/download/1.4.335.0/linux/vulkansdk-linux-x86_64-1.4.335.0.tar.xz -o /tmp/vulkansdk-linux-x86_64-1.4.335.0.tar.xz
+
+sudo mkdir -v /opt/VulkanSDK/
+
+sudo tar -xvf /tmp/vulkansdk-linux-x86_64-1.4.335.0.tar.xz -C /opt/VulkanSDK/
+```
+
+Then point the `VULKAN_SDK` environment variable to its location:
+
+```Bash
+echo 'VULKAN_SDK="/opt/VulkanSDK/1.4.335.0/x86_64"' | sudo tee -a /etc/environment
+
+source /etc/environment # or `. /etc/environment`
+```
+
+Finally add the Vulkan SDK's libraries as well:
+
+```Bash
+echo "${VULKAN_SDK}/lib" | sudo tee -a /etc/ld.so.conf.d/vulkan-sdk.conf
+
+sudo ldconfig
+```
 
 ## 2. Building
 
@@ -42,8 +64,12 @@ Clone the project through Visual Studio
 Then generate a Visual Studio project:
 
 ```PowerShell
+cd <PATH_TO_PROJECT>
+
 premake5.exe vs2026
 ```
+
+Now double-click on the `.slnx` file to load the project
 
 ### 2.2. Linux
 
@@ -54,7 +80,7 @@ cd ~/.build/vkvoxel
 
 premake5 ninja
 
-ninja Debug # or `ninja Release`
+ninja # or `ninja Debug`
 ```
 
 ## 3. Graphics debugging
@@ -62,7 +88,7 @@ ninja Debug # or `ninja Release`
 *Assuming project is cloned into `~/.build/vkvoxel`:*
 
 ```Bash
-SDL_VIDEO_DRIVER=x11 renderdoccmd capture -d ~/.build/vkvoxel -c vkvoxel ~/.build/vkvoxel/bin/Debug/vkvoxel
+renderdoccmd capture -d ~/.build/vkvoxel -c vkvoxel ~/.build/vkvoxel/bin/Debug/vkvoxel
 ```
 
 This will launch the program - press `F12` or `PrtSc` to capture a frame.
@@ -72,3 +98,27 @@ Finally to debug the frame:
 ```
 qrenderdoc ~/.build/vkvoxel/vkvoxel_frame*.rdc
 ```
+
+## 4. FAQ
+
+> *How do I use Clang instead of GCC on Linux?*
+
+Modify the `premake5.lua` file:
+
+Edit `toolset "gcc"` -> `toolset "clang"` under `filter { "platforms:Linux" }`
+
+> *Why is my IDE  giving me `#include` warnings on Linux?*
+
+Your IDE probably isn't aware of the `$VULKAN_SDK` include path
+
+First of all install `clangd` through your package manager
+
+Then install the [clangd](https://open-vsx.org/vscode/item?itemName=llvm-vs-code-extensions.vscode-clangd) extension through VS Code
+
+Finally generate a `compile_commands.json` file with the command: `premake5 ninja && bear -- ninja Debug`
+
+> *How do I debug through VS Code on Linux?*
+
+First of all install `lldb` through your package manager
+
+Then install the [LLDB DAP](https://open-vsx.org/vscode/item?itemName=llvm-vs-code-extensions.lldb-dap) extension through VS Code

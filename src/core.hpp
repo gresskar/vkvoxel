@@ -1,4 +1,4 @@
-#include <volk.h>
+#include <volk/volk.h>
 
 #include <SDL3/SDL_video.h>
 
@@ -57,23 +57,23 @@ private:
 	void loadVulkan(void);
 
 	void createInstance(void);
-	VkInstance m_instance{ nullptr };
+	VkInstance m_instance{ VK_NULL_HANDLE };
 	
 	void createSurface(void);
-	VkSurfaceKHR m_surface{ nullptr };
+	VkSurfaceKHR m_surface{ VK_NULL_HANDLE };
 
 	void pickPhysicalDevice(void);
-	VkPhysicalDevice m_physicalDevice{ nullptr };
+	VkPhysicalDevice m_physicalDevice{ VK_NULL_HANDLE };
 	
 	void createLogicalDevice(void);
-	VkDevice m_device{ nullptr };
-	VkQueue m_graphicsQueue{ nullptr };
-	VkQueue m_presentQueue{ nullptr };
+	VkDevice m_device{ VK_NULL_HANDLE };
+	VkQueue m_graphicsQueue{ VK_NULL_HANDLE };
+	VkQueue m_presentQueue{ VK_NULL_HANDLE };
 
 	void createSwapChain(void);
 	void cleanupSwapChain(void);
 	void recreateSwapChain(void);
-	VkSwapchainKHR m_swapChain{ nullptr };
+	VkSwapchainKHR m_swapChain{ VK_NULL_HANDLE };
 	VkSurfaceCapabilitiesKHR m_swapChainCapabilities{};
 	VkSurfaceFormatKHR m_swapChainSurfaceFormat{};
 	VkFormat m_swapChainImageFormat;
@@ -87,11 +87,11 @@ private:
 	[[nodiscard]] std::vector<char> readFile(const std::string &filename) const; // helper function for createGraphicsPipeline()
 	[[nodiscard]] VkShaderModule createShaderModule(const std::vector<char> &shaderCode) const; // helper function for createGraphicsPipeline()
 	void createGraphicsPipeline(void);
-	VkPipelineLayout m_pipelineLayout{ nullptr };
-	VkPipeline m_graphicsPipeline{ nullptr };
+	VkPipelineLayout m_pipelineLayout{ VK_NULL_HANDLE };
+	VkPipeline m_graphicsPipeline{ VK_NULL_HANDLE };
 	
 	void createCommandPool(void);
-	VkCommandPool m_cmdPool{ nullptr };
+	VkCommandPool m_cmdPool{ VK_NULL_HANDLE };
 
 	void createCommandBuffers(void);
 	std::vector<VkCommandBuffer> m_cmdBuffers{};

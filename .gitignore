@@ -1,6 +1,9 @@
+.cache/
+.vs/
 bin/
 obj/
 shaders/*.spv
+compile_commands.json
 Makefile
 .ninja_*
 *.make
@@ -9,4 +12,5 @@ Makefile
 *.rdc
 *.slnx
 *.vcxproj
+*.vcxproj.user
 *.workspace
