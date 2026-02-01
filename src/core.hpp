@@ -44,6 +44,7 @@ private:
 		createImageViews();
 		createGraphicsPipeline();
 		createCommandPool();
+		createVertexBuffer();
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -92,6 +93,10 @@ private:
 	
 	void createCommandPool(void);
 	VkCommandPool m_cmdPool{ VK_NULL_HANDLE };
+
+	void createVertexBuffer(void);
+	VkBuffer m_vertexBuffer{ VK_NULL_HANDLE };
+	VkDeviceMemory m_vertexBufferMemory{ VK_NULL_HANDLE };
 
 	void createCommandBuffers(void);
 	std::vector<VkCommandBuffer> m_cmdBuffers{};

@@ -7,6 +7,7 @@
 #include <SDL3/SDL_events.h>
 
 #include "core.hpp"
+#include "triangle.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -520,15 +521,18 @@ void Core::createGraphicsPipeline(void)
 		.pScissors = &scissor,
 	};
 
-	/* Vertex input - TODO: change this when vertices are no longer hardcoded in the vertex shader */
+	/* Vertex input for triangle */
+	constexpr auto bindingDescription = Triangle::getBindingDescription();
+	constexpr auto attributeDescriptions = Triangle::getAttributeDescriptions();
+
 	const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
-		.vertexBindingDescriptionCount = 0,
-		.pVertexBindingDescriptions = VK_NULL_HANDLE,
-		.vertexAttributeDescriptionCount = 0,
-		.pVertexAttributeDescriptions = VK_NULL_HANDLE,
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &bindingDescription,
+		.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()),
+		.pVertexAttributeDescriptions = attributeDescriptions.data(),
 	};
 
 	/* Input assembly */
@@ -713,6 +717,73 @@ void Core::createCommandPool(void)
 	}
 }
 
+void Core::createVertexBuffer(void)
+{
+	/* Create an empty vertex buffer */
+	const VkBufferCreateInfo bufferInfo = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.pNext = VK_NULL_HANDLE,
+		.flags = 0,
+		.size = sizeof(vertices.at(0)) * vertices.size(),
+		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = VK_NULL_HANDLE,
+	};
+
+	if (vkCreateBuffer(m_device, &bufferInfo, VK_NULL_HANDLE, &m_vertexBuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("vkCreateBuffer() failed!");
+	}
+
+	/* Find the best suited memory for our vertex buffer */	
+	VkMemoryRequirements memRequirements{};
+	vkGetBufferMemoryRequirements(m_device, m_vertexBuffer, &memRequirements);
+
+	VkPhysicalDeviceMemoryProperties memProperties{};
+	vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
+
+	uint32_t memoryTypeIndex = 0;
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+	{
+		if ((memRequirements.memoryTypeBits & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+		{
+			memoryTypeIndex = i;
+			break;
+		}
+	}
+
+	if (memoryTypeIndex == 0)
+	{
+		throw std::runtime_error("failed to find suitable memory type for vertex buffer!");
+	}
+
+	/* Allocate the memory */
+	VkMemoryAllocateInfo allocInfo = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext = VK_NULL_HANDLE,
+		.allocationSize = memRequirements.size,
+		.memoryTypeIndex = memoryTypeIndex,
+	};
+
+	if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexBufferMemory) != VK_SUCCESS)
+	{
+		throw std::runtime_error("vkAllocateMemory() failed!");
+	}
+
+	/* Bind the memory */
+	if (vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexBufferMemory, 0) != VK_SUCCESS)
+	{
+		throw std::runtime_error("vkBindBufferMemory() failed!");
+	}
+
+	/* Fill the vertex buffer */
+	void *data = nullptr;
+	vkMapMemory(m_device, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+	memcpy(data, vertices.data(), static_cast<size_t>(bufferInfo.size));
+	vkUnmapMemory(m_device, m_vertexBufferMemory);
+}
+
 void Core::createCommandBuffers(void)
 {
 	m_cmdBuffers.clear();
@@ -840,9 +911,12 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
 	/* Begin rendering */
 	vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
-	/* Bind our pipeline plus our dynamic state */
+	/* Bind our pipeline amd vertex buffers */
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	VkDeviceSize offset = 0;
+	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &m_vertexBuffer, &offset);
 
+	/* Set dynamic state */
 	const VkViewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
@@ -861,6 +935,7 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
 
 	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
+	/* Draw */
 	vkCmdDraw(cmdBuffer, 3, 1, 0 ,0);
 	
 	/* End rendering */
@@ -1035,6 +1110,12 @@ void Core::cleanup(void)
 
 	vkDestroyCommandPool(m_device, m_cmdPool, VK_NULL_HANDLE);
 	m_cmdPool = VK_NULL_HANDLE;
+
+	vkDestroyBuffer(m_device, m_vertexBuffer, VK_NULL_HANDLE);
+	m_vertexBuffer = VK_NULL_HANDLE;
+
+	vkFreeMemory(m_device, m_vertexBufferMemory, VK_NULL_HANDLE);
+	m_vertexBufferMemory = VK_NULL_HANDLE;
 
 	vkDestroyPipeline(m_device, m_graphicsPipeline, VK_NULL_HANDLE);
 	m_graphicsPipeline = VK_NULL_HANDLE;
