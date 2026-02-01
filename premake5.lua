@@ -34,6 +34,7 @@ workspace "vkvoxel"
       warnings "Extra"
       optimize "Off"
       linktimeoptimization "Off"
+      sanitize { "Address" }
       if os.host() == "windows" then
       symbols "Default"
       else
