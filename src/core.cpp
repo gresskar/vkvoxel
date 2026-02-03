@@ -6,11 +6,17 @@
 #include <SDL3/SDL_vulkan.h>
 #include <SDL3/SDL_events.h>
 
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "core.hpp"
 #include "triangle.hpp"
 #include "rectangle.hpp"
+#include "mvp.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <limits>
 #include <stdexcept>
@@ -444,6 +450,30 @@ void Core::createImageViews(void)
 	}
 }
 
+void Core::createDescriptorSetLayout(void)
+{
+	constexpr VkDescriptorSetLayoutBinding layoutBinding = {
+		.binding = 0,
+		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		.descriptorCount = 1,
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		.pImmutableSamplers = VK_NULL_HANDLE
+	};
+
+	const VkDescriptorSetLayoutCreateInfo createInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.pNext = VK_NULL_HANDLE,
+		.flags = 0,
+		.bindingCount = 1,
+		.pBindings = &layoutBinding
+	};
+
+	if (vkCreateDescriptorSetLayout(m_device, &createInfo, VK_NULL_HANDLE, &m_descriptorSetLayout) != VK_SUCCESS)
+	{
+    	throw std::runtime_error("failed to create descriptor set layout!");
+	}
+}
+
 [[nodiscard]] std::vector<char> Core::readFile(const std::string &filename) const
 {
 	/* Open file */
@@ -573,7 +603,7 @@ void Core::createGraphicsPipeline(void)
 		.rasterizerDiscardEnable = VK_FALSE,
 		.polygonMode = VK_POLYGON_MODE_FILL,
 		.cullMode = VK_CULL_MODE_BACK_BIT,
-		.frontFace = VK_FRONT_FACE_CLOCKWISE, // VK_FRONT_FACE_COUNTER_CLOCKWISE?
+		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE, // VK_FRONT_FACE_CLOCKWISE?
 		.depthBiasEnable = VK_FALSE,
 		.depthBiasConstantFactor = 0.0f,
 		.depthBiasClamp = 0.0f,
@@ -655,8 +685,8 @@ void Core::createGraphicsPipeline(void)
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.pNext = VK_NULL_HANDLE,
 		.flags = 0,
-		.setLayoutCount = 0,
-		.pSetLayouts = VK_NULL_HANDLE,
+		.setLayoutCount = 1,
+		.pSetLayouts = &m_descriptorSetLayout,
 		.pushConstantRangeCount = 0,
 		.pPushConstantRanges = VK_NULL_HANDLE,
 	};
@@ -889,6 +919,103 @@ void Core::createIndexBuffer(void)
     vkFreeMemory(m_device, stagingBufferMemory, nullptr);
 }
 
+void Core::createUniformBuffers(void)
+{
+    m_uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    m_uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+    m_uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+	constexpr VkDeviceSize bufferSize = sizeof(MVP);
+
+	for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_uniformBuffers.at(i), m_uniformBuffersMemory.at(i));
+        vkMapMemory(m_device, m_uniformBuffersMemory.at(i), 0, bufferSize, 0, &m_uniformBuffersMapped.at(i));
+	}
+}
+
+void Core::updateUniformBuffer(const uint32_t &currentFrame)
+{
+	/* Measure the time to make sure we rotate 90° per second regardless of framerate */
+	static auto startTime = std::chrono::high_resolution_clock::now();
+	auto currentTime = std::chrono::high_resolution_clock::now();
+    const float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+	MVP mvp{};
+	mvp.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	mvp.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	mvp.projection = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
+	mvp.projection[1][1] *= -1;
+
+	memcpy(m_uniformBuffersMapped[currentFrame], &mvp, sizeof(mvp));
+}
+
+void Core::createDescriptorPool(void)
+{
+	constexpr VkDescriptorPoolSize poolSize = {
+		.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+	};
+
+	const VkDescriptorPoolCreateInfo createInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		.pNext = VK_NULL_HANDLE,
+		.flags = 0,
+		.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+		.poolSizeCount = 1,
+		.pPoolSizes = &poolSize,
+	};
+
+	if (vkCreateDescriptorPool(m_device, &createInfo, VK_NULL_HANDLE, &m_descriptorPool) != VK_SUCCESS)
+	{
+    	throw std::runtime_error("vkCreateDescriptorPool() failed!");
+	}
+}
+
+void Core::createDescriptorSets(void)
+{
+	m_descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+
+	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_descriptorSetLayout);
+
+	const VkDescriptorSetAllocateInfo allocInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.pNext = VK_NULL_HANDLE,
+		.descriptorPool = m_descriptorPool,
+		.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+		.pSetLayouts = layouts.data(),
+	};
+	
+	if (vkAllocateDescriptorSets(m_device, &allocInfo, m_descriptorSets.data()) != VK_SUCCESS)
+	{
+	    throw std::runtime_error("vkAllocateDescriptorSets() failed!");
+	}
+
+	for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		const VkDescriptorBufferInfo bufferInfo = {
+			.buffer = m_uniformBuffers.at(i),
+			.offset = 0,
+			.range = sizeof(MVP),
+		};
+
+		const VkWriteDescriptorSet descriptorWrite = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext = VK_NULL_HANDLE,
+			.dstSet = m_descriptorSets.at(i),
+			.dstBinding = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.pImageInfo = VK_NULL_HANDLE,
+			.pBufferInfo = &bufferInfo,
+			.pTexelBufferView = VK_NULL_HANDLE,
+		};
+
+		vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, VK_NULL_HANDLE);
+	}
+}
+
 void Core::createCommandBuffers(void)
 {
 	m_cmdBuffers.clear();
@@ -1022,6 +1149,9 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
 	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &m_vertexBuffer, &offset);
 	vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT8);
 
+	/* Bind descriptor set */
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets.at(m_currentFrame), 0, VK_NULL_HANDLE);
+
 	/* Set dynamic state */
 	const VkViewport viewport = {
 		.x = 0.0f,
@@ -1088,7 +1218,7 @@ void Core::createSyncObjects(void)
 		}
 	}
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		/* Create semaphores for our presentation queue */
 		constexpr VkSemaphoreCreateInfo semaphoreCreateInfo = {
@@ -1138,6 +1268,9 @@ void Core::drawFrame(void)
 	{
 	    throw std::runtime_error("vkAcquireNextImageKHR() failed!");
 	}
+
+	/* Update Model-View-Projection matrix  */
+	updateUniformBuffer(m_currentFrame);
 
 	/* Reset fence after acquiring image to prevent deadlock */
 	if (vkResetFences(m_device, 1, &m_inFlightFences.at(m_currentFrame)) != VK_SUCCESS)
@@ -1206,7 +1339,7 @@ void Core::cleanup(void)
 		m_graphicsSemaphores.at(i) = VK_NULL_HANDLE;
 	}
 
-	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		vkDestroySemaphore(m_device, m_presentSemaphores.at(i), VK_NULL_HANDLE);
 		m_presentSemaphores.at(i) = VK_NULL_HANDLE;
@@ -1232,11 +1365,30 @@ void Core::cleanup(void)
 
 	cleanupSwapChain();
 
+
+    for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+        vkDestroyBuffer(m_device, m_uniformBuffers.at(i), VK_NULL_HANDLE);
+		m_uniformBuffers.at(i) = VK_NULL_HANDLE;
+        vkFreeMemory(m_device, m_uniformBuffersMemory.at(i), VK_NULL_HANDLE);
+		m_uniformBuffersMemory.at(i) = VK_NULL_HANDLE;
+    }
+
+	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+	m_descriptorPool = VK_NULL_HANDLE;
+
+	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, VK_NULL_HANDLE);
+	m_descriptorSetLayout = VK_NULL_HANDLE;
+
 	vkDestroyBuffer(m_device, m_indexBuffer, VK_NULL_HANDLE);
+	m_indexBuffer = VK_NULL_HANDLE;
     vkFreeMemory(m_device, m_indexBufferMemory, VK_NULL_HANDLE);
+	m_indexBufferMemory = VK_NULL_HANDLE;
 
     vkDestroyBuffer(m_device, m_vertexBuffer, VK_NULL_HANDLE);
     vkFreeMemory(m_device, m_vertexBufferMemory, VK_NULL_HANDLE);
+	m_vertexBuffer = VK_NULL_HANDLE;
+	m_vertexBufferMemory = VK_NULL_HANDLE;
 
 	vkDestroyDevice(m_device, VK_NULL_HANDLE);
 	m_device = VK_NULL_HANDLE;

@@ -7,7 +7,7 @@
 
 constexpr int WIDTH = 1280;
 constexpr int HEIGHT = 720;
-constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+constexpr uint8_t MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char *> requiredDeviceExtension = {
 	"VK_KHR_swapchain", "VK_KHR_shader_draw_parameters",
@@ -43,10 +43,14 @@ private:
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
+		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		createCommandPool();
 		createVertexBuffer();
 		createIndexBuffer();
+		createUniformBuffers();
+		createDescriptorPool();
+		createDescriptorSets();
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -86,6 +90,9 @@ private:
 
 	void createImageViews(void);
 	std::vector<VkImageView> m_swapChainImageViews{};
+
+	void createDescriptorSetLayout(void);
+	VkDescriptorSetLayout m_descriptorSetLayout;
 	
 	[[nodiscard]] std::vector<char> readFile(const std::string &filename) const; // helper function for createGraphicsPipeline()
 	[[nodiscard]] VkShaderModule createShaderModule(const std::vector<char> &shaderCode) const; // helper function for createGraphicsPipeline()
@@ -108,6 +115,18 @@ private:
 	void createIndexBuffer(void);
 	VkDeviceMemory m_vertexBufferMemory{ VK_NULL_HANDLE };
 	VkDeviceMemory m_indexBufferMemory{ VK_NULL_HANDLE };
+
+	void createUniformBuffers(void);
+	void updateUniformBuffer(const uint32_t &currentFrame);
+	std::vector<VkBuffer> m_uniformBuffers;
+	std::vector<VkDeviceMemory> m_uniformBuffersMemory;
+	std::vector<void*> m_uniformBuffersMapped;
+
+	void createDescriptorPool(void);
+	VkDescriptorPool m_descriptorPool{ VK_NULL_HANDLE };
+
+	void createDescriptorSets(void);
+	std::vector<VkDescriptorSet> m_descriptorSets{};
 
 	void createCommandBuffers(void);
 	std::vector<VkCommandBuffer> m_cmdBuffers{};
