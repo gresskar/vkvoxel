@@ -45,6 +45,7 @@ private:
 		createGraphicsPipeline();
 		createCommandPool();
 		createVertexBuffer();
+		createIndexBuffer();
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -94,9 +95,18 @@ private:
 	void createCommandPool(void);
 	VkCommandPool m_cmdPool{ VK_NULL_HANDLE };
 
+	// helper function for CreateVertexBuffer() and createIndexBuffer()
+	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkDeviceSize &size);
+
 	void createVertexBuffer(void);
 	VkBuffer m_vertexBuffer{ VK_NULL_HANDLE };
+	VkBuffer m_indexBuffer{ VK_NULL_HANDLE };
+
+	void createIndexBuffer(void);
 	VkDeviceMemory m_vertexBufferMemory{ VK_NULL_HANDLE };
+	VkDeviceMemory m_indexBufferMemory{ VK_NULL_HANDLE };
 
 	void createCommandBuffers(void);
 	std::vector<VkCommandBuffer> m_cmdBuffers{};

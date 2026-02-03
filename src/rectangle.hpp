@@ -2,7 +2,7 @@
 #include <volk/volk.h>
 #include <array>
 
-struct Triangle
+struct Rectangle
 {
     glm::vec2 position;
     glm::vec3 color;
@@ -12,7 +12,7 @@ struct Triangle
     {
         constexpr VkVertexInputBindingDescription bindingDescription = {
             .binding = 0,
-            .stride = sizeof(Triangle),
+            .stride = sizeof(Rectangle),
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
         };
 
@@ -28,7 +28,7 @@ struct Triangle
                 .location = 0,
                 .binding = 0,
                 .format = VK_FORMAT_R32G32_SFLOAT,
-                .offset = offsetof(Triangle, position),
+                .offset = offsetof(Rectangle, position),
             },
             
             /* Color */
@@ -36,7 +36,7 @@ struct Triangle
                 .location = 1,
                 .binding = 0,
                 .format = VK_FORMAT_R32G32B32_SFLOAT,
-                .offset = offsetof(Triangle, color),
+                .offset = offsetof(Rectangle, color),
             }
         }};
 
@@ -45,8 +45,13 @@ struct Triangle
 };
 
 /* Vertices are normally stored on the heap, but it's fine to store this on stack since it's so small */
-constexpr std::array<Triangle, 3> verticesTriangle = {{
-    { .position = { +0.0f, -0.5f }, .color = { 1.0f, 0.0f, 0.0f } },
-    { .position = { +0.5f, +0.5f }, .color = { 0.0f, 1.0f, 0.0f } },
-    { .position = { -0.5f, +0.5f }, .color = { 0.0f, 0.0f, 1.0f } }
+constexpr std::array<Rectangle, 4> verticesRectangle = {{
+    { .position = { -0.5f, -0.5f }, .color = { 1.0f, 0.0f, 0.0f } },
+    { .position = { +0.5f, -0.5f }, .color = { 0.0f, 1.0f, 0.0f } },
+    { .position = { +0.5f, +0.5f }, .color = { 0.0f, 0.0f, 1.0f } },
+    { .position = { -0.5f, +0.5f }, .color = { 1.0f, 1.0f, 1.0f } },
 }};
+
+constexpr std::array<uint8_t, 6> indicesRectangle = {
+    0, 1, 2, 2, 3, 0
+};
