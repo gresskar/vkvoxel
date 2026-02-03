@@ -11,7 +11,8 @@ constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char *> requiredDeviceExtension = {
 	"VK_KHR_swapchain", "VK_KHR_shader_draw_parameters",
-	"VK_KHR_synchronization2", "VK_KHR_dynamic_rendering"
+	"VK_KHR_synchronization2", "VK_KHR_dynamic_rendering",
+	"VK_KHR_index_type_uint8"
 };
 
 const std::vector<const char *> validationLayers = { "VK_LAYER_KHRONOS_validation" };

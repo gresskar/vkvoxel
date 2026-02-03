@@ -249,10 +249,16 @@ void Core::createLogicalDevice(void)
     	.dynamicRendering = VK_TRUE,
 	};
 
+	VkPhysicalDeviceIndexTypeUint8Features index_type_uint8_feature = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INDEX_TYPE_UINT8_FEATURES,
+		.pNext = &dynamic_rendering_feature,
+		.indexTypeUint8 = VK_TRUE,
+	};
+
 	/* Create the logical device */
 	const VkDeviceCreateInfo createInfo = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.pNext = &dynamic_rendering_feature,
+		.pNext = &index_type_uint8_feature,
 		.flags = 0,
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &queueCreateInfo,
