@@ -22,6 +22,11 @@ constexpr bool enableValidationLayers = false;
 constexpr bool enableValidationLayers = true;
 #endif
 
+#include "voxel.hpp"
+
+const std::string MODEL_PATH = "resources/models/voxel.obj";
+const std::string TEXTURE_PATH = "resources/textures/grass_block_side.jpg";
+
 class Core
 {
 public:
@@ -50,6 +55,7 @@ private:
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
+		loadModel();
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffers();
@@ -131,6 +137,10 @@ private:
 
 	void createTextureSampler(void);
 	VkSampler m_textureSampler{ VK_NULL_HANDLE };
+
+	void loadModel(void);
+	std::vector<Voxel> m_vertices;
+	std::vector<uint16_t> m_indices;
 
 	// helper function for CreateVertexBuffer() and createIndexBuffer()
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);

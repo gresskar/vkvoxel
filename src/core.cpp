@@ -14,10 +14,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
 #include "core.hpp"
-#include "triangle.hpp"
-#include "rectangle.hpp"
-//#include "voxel.hpp"
+#include "voxel.hpp"
 #include "ubo.hpp"
 
 #include <algorithm>
@@ -26,6 +27,7 @@
 #include <limits>
 #include <stdexcept>
 #include <vector>
+#include <unordered_map>
 
 void Core::createWindow(void)
 {
@@ -600,10 +602,8 @@ void Core::createGraphicsPipeline(void)
 	};
 
 	/* Vertex input for voxel */
-	constexpr auto bindingDescription = Rectangle::getBindingDescription();
-	constexpr auto attributeDescriptions = Rectangle::getAttributeDescriptions();
-	//constexpr auto bindingDescription = Voxel::getBindingDescription();
-	//constexpr auto attributeDescriptions = Voxel::getAttributeDescriptions();
+	constexpr auto bindingDescription = Voxel::getBindingDescription();
+	constexpr auto attributeDescriptions = Voxel::getAttributeDescriptions();
 
 	const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -1058,7 +1058,7 @@ void Core::createTextureImage(void)
 	/* Load image */
 	int texWidth = 0, texHeight = 0, texChannels = 0;
     
-	stbi_uc *pixels = stbi_load("resources/textures/grass_block_side.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	stbi_uc *pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	if (!pixels)
 	{
@@ -1122,6 +1122,49 @@ void Core::createTextureSampler(void)
     }
 }
 
+void Core::loadModel(void)
+{
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string err;
+
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str()))
+	{
+        throw std::runtime_error(err);
+    }
+
+	std::unordered_map<Voxel, uint16_t> uniqueVertices{};
+
+	for (const auto &shape : shapes)
+	{
+		for (const auto &index : shape.mesh.indices)
+		{
+			Voxel voxel{};
+
+			voxel.position = {
+				attrib.vertices[3 * index.vertex_index + 0],
+				attrib.vertices[3 * index.vertex_index + 1],
+				attrib.vertices[3 * index.vertex_index + 2]
+			};
+
+			voxel.color = {1.0f, 1.0f, 1.0f};
+
+			voxel.texCoord = {
+				attrib.texcoords[2 * index.texcoord_index + 0],
+				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+			};
+
+			if (uniqueVertices.count(voxel) == 0) {
+				uniqueVertices[voxel] = static_cast<uint32_t>(m_vertices.size());
+				m_vertices.push_back(voxel);
+			}
+
+			m_indices.push_back(uniqueVertices[voxel]);
+		}
+	}
+}
+
 uint32_t Core::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
 	VkPhysicalDeviceMemoryProperties memProperties;
@@ -1138,7 +1181,7 @@ uint32_t Core::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags propert
 	throw std::runtime_error("failed to find suitable memory type!");
 }
 
-void Core::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+void Core::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory)
 {
 	/* Create an empty vertex buffer */
 	const VkBufferCreateInfo bufferInfo = {
@@ -1247,48 +1290,49 @@ void Core::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkDeviceSize
 
 void Core::createVertexBuffer(void)
 {
-	constexpr VkDeviceSize bufferSize = sizeof(verticesRectangle[0]) * verticesRectangle.size();
-	//constexpr VkDeviceSize bufferSize = sizeof(verticesVoxel[0]) * verticesVoxel.size();
+	const VkDeviceSize bufferSize = sizeof(m_vertices.at(0)) * m_vertices.size();
+
+	if (bufferSize <= 0)
+	{
+		throw std::runtime_error("createVertexBuffer(): bufferSize is 0!");
+	}
 
 	VkBuffer stagingBuffer{ VK_NULL_HANDLE };
     VkDeviceMemory stagingBufferMemory{ VK_NULL_HANDLE };
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
-    void *data = nullptr;
+    void *data = VK_NULL_HANDLE;
     vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, verticesRectangle.data(), static_cast<uint32_t>(bufferSize));
-	//memcpy(data, verticesVoxel.data(), static_cast<uint32_t>(bufferSize));
+	memcpy(data, m_vertices.data(), static_cast<size_t>(bufferSize));
     vkUnmapMemory(m_device, stagingBufferMemory);
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vertexBuffer, m_vertexBufferMemory);
 
 	copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
 
-	vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer(m_device, stagingBuffer, VK_NULL_HANDLE);
+	vkFreeMemory(m_device, stagingBufferMemory, VK_NULL_HANDLE);
 }
 
 void Core::createIndexBuffer(void)
 {
-	constexpr VkDeviceSize bufferSize = sizeof(indicesRectangle.at(0)) * indicesRectangle.size();
-	//constexpr VkDeviceSize bufferSize = sizeof(indicesVoxel.at(0)) * indicesVoxel.size();
+	const VkDeviceSize bufferSize = sizeof(m_indices.at(0)) * m_indices.size();
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
-	void* data = nullptr;
+	void *data = VK_NULL_HANDLE;
     vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, indicesRectangle.data(), (size_t) bufferSize);
-    //memcpy(data, indicesVoxel.data(), (size_t) bufferSize);
+    memcpy(data, m_indices.data(), (size_t) bufferSize);
     vkUnmapMemory(m_device, stagingBufferMemory);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_indexBuffer, m_indexBufferMemory);
 
     copyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
 
-    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-    vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+    vkDestroyBuffer(m_device, stagingBuffer, VK_NULL_HANDLE);
+    vkFreeMemory(m_device, stagingBufferMemory, VK_NULL_HANDLE);
 }
 
 void Core::createUniformBuffers(void)
@@ -1591,7 +1635,7 @@ void Core::recordCommandBuffer(const uint32_t imageIndex)
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 	VkDeviceSize offset = 0;
 	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &m_vertexBuffer, &offset);
-	vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT8);
+	vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT16); // TODO: make VK_INDEX_TYPE_UINT32?
 
 	/* Bind descriptor set */
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets.at(m_currentFrame), 0, VK_NULL_HANDLE);
@@ -1616,9 +1660,7 @@ void Core::recordCommandBuffer(const uint32_t imageIndex)
 	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 	/* Draw */
-	//vkCmdDraw(cmdBuffer, 3, 1, 0 ,0);
-	vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(indicesRectangle.size()), 1, 0, 0, 0);
-	//vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(indicesVoxel.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(cmdBuffer, static_cast<uint16_t>(m_indices.size()), 1, 0, 0, 0);
 	
 	/* End rendering */
 	vkCmdEndRendering(cmdBuffer);
@@ -1825,7 +1867,7 @@ void Core::cleanup(void)
 		m_uniformBuffersMemory.at(i) = VK_NULL_HANDLE;
     }
 
-	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+	vkDestroyDescriptorPool(m_device, m_descriptorPool, VK_NULL_HANDLE);
 	m_descriptorPool = VK_NULL_HANDLE;
 
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, VK_NULL_HANDLE);
@@ -1852,7 +1894,7 @@ void Core::cleanup(void)
 
 	/* Clean up SDL stuff */
 	SDL_DestroyWindow(m_window);
-	m_window = nullptr;
+	m_window = VK_NULL_HANDLE;
 	SDL_QuitSubSystem(SDL_INIT_VIDEO);
 	SDL_Quit();
 }

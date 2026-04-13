@@ -1,6 +1,8 @@
 #pragma once
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
+#include <glm/gtx/hash.hpp>
 #include <volk/volk.h>
 #include <array>
 
@@ -8,7 +10,7 @@ struct Voxel
 {
     glm::vec3 position;
     glm::vec3 color;
-    glm::vec3 texCoord;
+    glm::vec2 texCoord;
 
      /* the number of bytes between data entries and whether to move to the next data entry after each vertex or after each instance */
     constexpr static VkVertexInputBindingDescription getBindingDescription(void)
@@ -22,7 +24,7 @@ struct Voxel
         return bindingDescription;
     }
 
-    /* An attribute description struct describes how to extract a vertex attribute from a chunk of vertex data originating from a binding description. We have two attributes, position and color, so we need two attribute description structs. */
+    /* An attribute description struct describes how to extract a vertex attribute from a chunk of vertex data originating from a binding description */
     constexpr static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions(void)
     {
         constexpr std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {{
@@ -30,7 +32,7 @@ struct Voxel
             VkVertexInputAttributeDescription{
                 .location = 0,
                 .binding = 0,
-                .format = VK_FORMAT_R32G32_SFLOAT,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
                 .offset = offsetof(Voxel, position),
             },
             
@@ -53,47 +55,18 @@ struct Voxel
 
         return attributeDescriptions;
     };
+
+    bool operator==(const Voxel &other) const
+    {
+        return position == other.position && color == other.color && texCoord == other.texCoord;
+    }
 };
 
-/* Vertices are normally stored on the heap, but it's fine to store this on stack since it's so small */
-constexpr std::array<Voxel, 24> verticesVoxel = {{
-    { .position = { +0.5f, +0.0f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.5f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.5f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.0f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-
-    { .position = { +0.0f, +0.0f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.0f, +0.0f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.0f, +0.5f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.0f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-
-    { .position = { +0.0f, +0.5f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.0f, +0.5f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.5f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.5f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-
-    { .position = { +0.0f, +0.0f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.0f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.0f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.0f, +0.0f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-
-    { .position = { +0.0f, +0.0f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.0f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.5f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.0f, +0.5f, +0.5f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-
-    { .position = { +0.0f, +0.0f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.0f, +0.5f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.5f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-    { .position = { +0.5f, +0.0f, +0.0f }, .color = { 1.0f, +0.0f, +0.0f }, .texCoord = { +0.0f, +0.0f, +0.0f } },
-
-}};
-
-constexpr std::array<uint8_t, 36> indicesVoxel = {
-    0,1,2, 0,2,3,
-    4,5,6, 4,6,7,
-    8,9,10, 8,10,11,
-    12,13,14, 12,14,15,
-    16,17,18, 16,18,19,
-    20,21,22, 20,22,23
+template <>
+struct std::hash<Voxel>
+{
+	size_t operator()(Voxel const &vertex) const noexcept
+	{
+		return ((hash<glm::vec3>()(vertex.position) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+	}
 };
