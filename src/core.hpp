@@ -46,6 +46,9 @@ private:
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		createCommandPool();
+		createTextureImage();
+		createTextureImageView();
+		createTextureSampler();
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffers();
@@ -102,6 +105,22 @@ private:
 	
 	void createCommandPool(void);
 	VkCommandPool m_cmdPool{ VK_NULL_HANDLE };
+
+	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage &image, VkDeviceMemory &imageMemory);
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+	void createTextureImage(void);
+	VkCommandBuffer beginSingleTimeCommands(void);
+	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+	void copyBuffer1(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkDeviceSize size);
+	VkImage m_textureImage { VK_NULL_HANDLE };
+	VkDeviceMemory m_textureImageMemory { VK_NULL_HANDLE };
+
+	void createTextureImageView(void);
+	VkImageView m_textureImageView{ VK_NULL_HANDLE };
+
+	void createTextureSampler(void);
+	VkSampler m_textureSampler{ VK_NULL_HANDLE };
 
 	// helper function for CreateVertexBuffer() and createIndexBuffer()
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);

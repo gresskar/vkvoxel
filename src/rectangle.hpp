@@ -8,6 +8,7 @@ struct Rectangle
 {
     glm::vec2 position;
     glm::vec3 color;
+    glm::vec2 texCoord;
 
     /* the number of bytes between data entries and whether to move to the next data entry after each vertex or after each instance */
     constexpr static VkVertexInputBindingDescription getBindingDescription(void)
@@ -21,10 +22,10 @@ struct Rectangle
         return bindingDescription;
     }
 
-    /* An attribute description struct describes how to extract a vertex attribute from a chunk of vertex data originating from a binding description. We have two attributes, position and color, so we need two attribute description structs. */
-    constexpr static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions(void)
+    /* An attribute description struct describes how to extract a vertex attribute from a chunk of vertex data originating from a binding description. We have three attributes, position, color and texture coordinates, so we need three attribute description structs. */
+    constexpr static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions(void)
     {
-        constexpr std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {{
+        constexpr std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {{
             /* Position */
             VkVertexInputAttributeDescription{
                 .location = 0,
@@ -39,6 +40,14 @@ struct Rectangle
                 .binding = 0,
                 .format = VK_FORMAT_R32G32B32_SFLOAT,
                 .offset = offsetof(Rectangle, color),
+            },
+
+            /* Texture coordinates */
+            VkVertexInputAttributeDescription{
+                .location = 2,
+                .binding = 0,
+                .format = VK_FORMAT_R32G32_SFLOAT,
+                .offset = offsetof(Rectangle, texCoord),
             }
         }};
 
@@ -48,10 +57,10 @@ struct Rectangle
 
 /* Vertices are normally stored on the heap, but it's fine to store this on stack since it's so small */
 constexpr std::array<Rectangle, 4> verticesRectangle = {{
-    { .position = { -0.5f, -0.5f }, .color = { 1.0f, 0.0f, 0.0f } },
-    { .position = { +0.5f, -0.5f }, .color = { 0.0f, 1.0f, 0.0f } },
-    { .position = { +0.5f, +0.5f }, .color = { 0.0f, 0.0f, 1.0f } },
-    { .position = { -0.5f, +0.5f }, .color = { 1.0f, 1.0f, 1.0f } },
+    { .position = { -0.5f, -0.5f }, .color = { 1.0f, 0.0f, 0.0f }, .texCoord = { 1.0f, 0.0f } },
+    { .position = { +0.5f, -0.5f }, .color = { 0.0f, 1.0f, 0.0f }, .texCoord = { 0.0f, 0.0f } },
+    { .position = { +0.5f, +0.5f }, .color = { 0.0f, 0.0f, 1.0f }, .texCoord = { 0.0f, 1.0f } },
+    { .position = { -0.5f, +0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .texCoord = { 1.0f, 1.0f } },
 }};
 
 constexpr std::array<uint8_t, 6> indicesRectangle = {

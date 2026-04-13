@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 
 /* TODO: replace with push constant? */
-struct MVP
+struct UniformBufferObject
 {
     glm::mat4 model;
     glm::mat4 view;
