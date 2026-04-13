@@ -88,7 +88,7 @@ ninja # or `ninja Debug`
 *Assuming project is cloned into `~/.build/vkvoxel`:*
 
 ```Bash
-renderdoccmd capture -d ~/.build/vkvoxel -c vkvoxel ~/.build/vkvoxel/bin/Debug/vkvoxel
+SDL_VIDEO_DRIVER=x11 renderdoccmd capture -d ~/.build/vkvoxel -c vkvoxel ~/.build/vkvoxel/bin/Release/vkvoxel
 ```
 
 This will launch the program - press `F12` or `PrtSc` to capture a frame.
