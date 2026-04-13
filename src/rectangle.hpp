@@ -6,7 +6,7 @@
 
 struct Rectangle
 {
-    glm::vec2 position;
+    glm::vec3 position;
     glm::vec3 color;
     glm::vec2 texCoord;
 
@@ -30,7 +30,7 @@ struct Rectangle
             VkVertexInputAttributeDescription{
                 .location = 0,
                 .binding = 0,
-                .format = VK_FORMAT_R32G32_SFLOAT,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
                 .offset = offsetof(Rectangle, position),
             },
             
@@ -56,13 +56,19 @@ struct Rectangle
 };
 
 /* Vertices are normally stored on the heap, but it's fine to store this on stack since it's so small */
-constexpr std::array<Rectangle, 4> verticesRectangle = {{
-    { .position = { -0.5f, -0.5f }, .color = { 1.0f, 0.0f, 0.0f }, .texCoord = { 1.0f, 0.0f } },
-    { .position = { +0.5f, -0.5f }, .color = { 0.0f, 1.0f, 0.0f }, .texCoord = { 0.0f, 0.0f } },
-    { .position = { +0.5f, +0.5f }, .color = { 0.0f, 0.0f, 1.0f }, .texCoord = { 0.0f, 1.0f } },
-    { .position = { -0.5f, +0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .texCoord = { 1.0f, 1.0f } },
+constexpr std::array<Rectangle, 8> verticesRectangle = {{
+    { .position = { -0.5f, -0.5f, +0.0f }, .color = { 1.0f, 0.0f, 0.0f }, .texCoord = { 0.0f, 0.0f } },
+    { .position = { +0.5f, -0.5f, +0.0f }, .color = { 0.0f, 1.0f, 0.0f }, .texCoord = { 1.0f, 0.0f } },
+    { .position = { +0.5f, +0.5f, +0.0f }, .color = { 0.0f, 0.0f, 1.0f }, .texCoord = { 1.0f, 1.0f } },
+    { .position = { -0.5f, +0.5f, +0.0f }, .color = { 1.0f, 1.0f, 1.0f }, .texCoord = { 0.0f, 1.0f } },
+
+    { .position = { -0.5f, -0.5f, -0.5f }, .color = { 1.0f, 0.0f, 0.0f }, .texCoord = { 0.0f, 0.0f } },
+    { .position = { +0.5f, -0.5f, -0.5f }, .color = { 0.0f, 1.0f, 0.0f }, .texCoord = { 1.0f, 0.0f } },
+    { .position = { +0.5f, +0.5f, -0.5f }, .color = { 0.0f, 0.0f, 1.0f }, .texCoord = { 1.0f, 1.0f } },
+    { .position = { -0.5f, +0.5f, -0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .texCoord = { 0.0f, 1.0f } }
 }};
 
-constexpr std::array<uint8_t, 6> indicesRectangle = {
-    0, 1, 2, 2, 3, 0
+constexpr std::array<uint8_t, 12> indicesRectangle = {
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4
 };

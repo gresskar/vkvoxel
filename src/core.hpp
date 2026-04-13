@@ -46,6 +46,7 @@ private:
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		createCommandPool();
+		createDepthResources();
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
@@ -91,6 +92,7 @@ private:
 	VkExtent2D m_swapChainExtent{};
 	std::vector<VkImage> m_swapChainImages{};
 
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	void createImageViews(void);
 	std::vector<VkImageView> m_swapChainImageViews{};
 
@@ -106,8 +108,16 @@ private:
 	void createCommandPool(void);
 	VkCommandPool m_cmdPool{ VK_NULL_HANDLE };
 
+	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+	VkFormat findDepthFormat(void);
+	bool hasStencilComponent(const VkFormat &format);
+	void createDepthResources(void);
+	VkImage m_depthImage{ VK_NULL_HANDLE };
+	VkDeviceMemory m_depthImageMemory{ VK_NULL_HANDLE };
+	VkImageView m_depthImageView{ VK_NULL_HANDLE };
+
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage &image, VkDeviceMemory &imageMemory);
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void createTextureImage(void);
 	VkCommandBuffer beginSingleTimeCommands(void);
@@ -150,7 +160,7 @@ private:
 	void createCommandBuffers(void);
 	std::vector<VkCommandBuffer> m_cmdBuffers{};
 
-	void transition_image_layout(uint32_t imageIndex, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask);
+	void transition_image_layout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask, VkImageAspectFlags image_aspect_flags);
 	void recordCommandBuffer(const uint32_t imageIndex);
 	
 	void createSyncObjects(void);
