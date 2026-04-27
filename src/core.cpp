@@ -5,6 +5,8 @@
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
 #include <SDL3/SDL_events.h>
+#include <SDL3/SDL_timer.h>
+#include <SDL3/SDL_mouse.h>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -22,7 +24,6 @@
 #include "ubo.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <fstream>
 #include <limits>
 #include <stdexcept>
@@ -37,12 +38,24 @@ void Core::createWindow(void)
 		throw std::runtime_error("SDL_InitSubSystem() failed: " + std::string(SDL_GetError()));
 	}
 
+	/* Hide cursor */
+	if (!SDL_HideCursor())
+	{
+		throw std::runtime_error("SDL_HideCursor() failed: " + std::string(SDL_GetError()));
+	}
+
 	/* Create a Vulkan-compatible SDL window */
 	m_window = SDL_CreateWindow("VKVoxel", WIDTH, HEIGHT, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
 	if (!m_window)
 	{
 		throw std::runtime_error("SDL_CreateWindow() failed: " + std::string(SDL_GetError()));
+	}
+
+	/* Make it so the mouse can't leave the window */
+	if (!SDL_SetWindowRelativeMouseMode(m_window, true))
+	{
+		throw std::runtime_error("SDL_SetWindowRelativeMouseMode() failed: " + std::string(SDL_GetError()));
 	}
 }
 
@@ -53,7 +66,7 @@ void Core::mainLoop(void)
 
 	while (should_run)
 	{
-		/* Handle input */
+		/* Handle events */
 		while (SDL_PollEvent(&event))
 		{
 			/* Exit the application if the user requested it, e.g. when the 'X' on the title bar is clicked, or Alt+F4 is pressed */
@@ -68,9 +81,14 @@ void Core::mainLoop(void)
 			{
 				m_framebufferResized = true;
 			}
+
+			/* Handle inputs (e.g. keyboard/mouse) */
+			processInput(event);
+
 		}
 
 		/* Update state */
+		updateUniformBuffer(m_currentFrame);
 
 		/* Render frame */
 		drawFrame();
@@ -679,8 +697,8 @@ void Core::createGraphicsPipeline(void)
 		.stencilTestEnable = VK_FALSE,
 		.front = {},
 		.back = {},
-		//.minDepthBounds = 0,
-		//.maxDepthBounds = 0,
+		.minDepthBounds = 0,
+		.maxDepthBounds = 0,
 	};
 
 	/* Color blending */
@@ -778,7 +796,7 @@ void Core::createGraphicsPipeline(void)
 		throw std::runtime_error("VkGraphicsPipelineCreateInfo() failed!");
 	}
 
-	/* Clean up */
+	/* Clean up shader modules */
 	vkDestroyShaderModule(m_device, fragShaderModule, VK_NULL_HANDLE);
     vkDestroyShaderModule(m_device, vertShaderModule, VK_NULL_HANDLE);
 }
@@ -861,8 +879,8 @@ void Core::createImage(uint32_t width, uint32_t height, VkFormat format, VkImage
 		.tiling = tiling,
 		.usage = usage,
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		//.queueFamilyIndexCount = 0,
-		//.pQueueFamilyIndices = VK_NULL_HANDLE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = VK_NULL_HANDLE,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
 	};
 
@@ -1350,20 +1368,23 @@ void Core::createUniformBuffers(void)
 	}
 }
 
-void Core::updateUniformBuffer(const uint32_t &currentFrame)
+void Core::updateUniformBuffer(const uint32_t currentFrame)
 {
-	/* Measure the time to make sure we rotate 90° per second regardless of framerate */
-	static auto startTime = std::chrono::high_resolution_clock::now();
-	auto currentTime = std::chrono::high_resolution_clock::now();
-    const float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+	UniformBufferObject ubo {};
 
-	UniformBufferObject ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.projection = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
+	//ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)) * glm::mat4_cast(glm::quat(objectRotations[0]));
+
+	//ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.view = glm::translate(glm::mat4(1.0f), camPos);
+
+	ubo.projection = glm::perspective(glm::radians(45.0f),  static_cast<float>(m_swapChainExtent.width) / static_cast<float>(m_swapChainExtent.height), 0.1f, 32.0f);
 	ubo.projection[1][1] *= -1;
 
-	memcpy(m_uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
+
+	// glm::vec3(camCoo.x + glm::sin(camOri.y)/4*myMove, camCoo.y + glm::cos(camOri.y)/4*myMove, camCoo.z);
+
+	memcpy(m_uniformBuffersMapped.at(currentFrame), &ubo, sizeof(ubo));
 }
 
 void Core::createDescriptorPool(void)
@@ -1582,9 +1603,9 @@ void Core::recordCommandBuffer(const uint32_t imageIndex)
 		.pNext = VK_NULL_HANDLE,
 		.imageView = m_swapChainImageViews.at(imageIndex),
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		//.resolveMode = VK_RESOLVE_MODE_NONE,
-		//.resolveImageView = VK_NULL_HANDLE,
-		//.resolveImageLayout = {},
+		.resolveMode = VK_RESOLVE_MODE_NONE,
+		.resolveImageView = VK_NULL_HANDLE,
+		.resolveImageLayout = {},
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 		.clearValue = clearColor,
@@ -1603,9 +1624,9 @@ void Core::recordCommandBuffer(const uint32_t imageIndex)
 		.pNext = VK_NULL_HANDLE,
 		.imageView = m_depthImageView,
 		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-		//.resolveMode = VK_RESOLVE_MODE_NONE,
-		//.resolveImageView = VK_NULL_HANDLE,
-		//.resolveImageLayout = {},
+		.resolveMode = VK_RESOLVE_MODE_NONE,
+		.resolveImageView = VK_NULL_HANDLE,
+		.resolveImageLayout = {},
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 		.clearValue = clearDepth,
@@ -1635,7 +1656,7 @@ void Core::recordCommandBuffer(const uint32_t imageIndex)
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 	VkDeviceSize offset = 0;
 	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &m_vertexBuffer, &offset);
-	vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT16); // TODO: make VK_INDEX_TYPE_UINT32?
+	vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
 	/* Bind descriptor set */
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets.at(m_currentFrame), 0, VK_NULL_HANDLE);
@@ -1734,6 +1755,44 @@ void Core::createSyncObjects(void)
 	}
 }
 
+void Core::processInput(const SDL_Event &event)
+{
+	const float elapsedTime = (SDL_GetTicks() - lastTime) / 1000.0f;
+	lastTime = SDL_GetTicks();
+
+	if (event.type == SDL_EVENT_KEY_DOWN)
+	{
+		switch (event.key.key)
+		{
+			case SDLK_W:
+				break;
+			case SDLK_A:
+				break;
+			case SDLK_S:
+				break;
+			case SDLK_D:
+				break;
+			case SDLK_SPACE:
+				break;
+			case SDLK_LCTRL:
+				break;
+			default:
+				break;
+		}
+	}
+
+	else if (event.type == SDL_EVENT_MOUSE_MOTION)
+	{
+		objectRotations[0].x -= event.motion.yrel * elapsedTime;
+		objectRotations[0].y += event.motion.xrel * elapsedTime;
+	}
+
+	else if (event.type == SDL_EVENT_MOUSE_WHEEL)
+	{
+		camPos.z += event.wheel.y * elapsedTime * 10.0f;
+	}
+}
+
 void Core::drawFrame(void)
 {
 	/* Wait for the previous frame to finish */
@@ -1757,8 +1816,10 @@ void Core::drawFrame(void)
 	    throw std::runtime_error("vkAcquireNextImageKHR() failed!");
 	}
 
-	/* Update Model-View-Projection matrix  */
+	/* Update Model-View-Projection matrix
+	 * this is already done in the main loop
 	updateUniformBuffer(m_currentFrame);
+	*/
 
 	/* Reset fence after acquiring image to prevent deadlock */
 	if (vkResetFences(m_device, 1, &m_inFlightFences.at(m_currentFrame)) != VK_SUCCESS)
@@ -1772,6 +1833,7 @@ void Core::drawFrame(void)
 
 	/* Submit the recorded command buffer */
 	const VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
 	const VkSubmitInfo submitInfo = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.pNext = VK_NULL_HANDLE,
@@ -1801,7 +1863,7 @@ void Core::drawFrame(void)
 		.pResults = VK_NULL_HANDLE,
 	};
 
-	/*VkResult*/ result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
+	result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized)
 	{
@@ -1853,8 +1915,10 @@ void Core::cleanup(void)
 	cleanupSwapChain();
 
 	vkDestroySampler(m_device, m_textureSampler, VK_NULL_HANDLE);
+	m_textureSampler = VK_NULL_HANDLE;
 
 	vkDestroyImageView(m_device, m_textureImageView, VK_NULL_HANDLE);
+	m_textureImageView = VK_NULL_HANDLE;
 
     vkDestroyImage(m_device, m_textureImage, VK_NULL_HANDLE);
     vkFreeMemory(m_device, m_textureImageMemory, VK_NULL_HANDLE);

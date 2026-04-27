@@ -1,6 +1,8 @@
+#include <SDL3/SDL_events.h>
 #include <volk/volk.h>
 
 #include <SDL3/SDL_video.h>
+#include <SDL3/SDL_timer.h>
 
 #include <string>
 #include <vector>
@@ -66,6 +68,10 @@ private:
 	}
 
 private:
+	glm::vec3 camPos { 0.0f, 0.0f, -6.0f };
+	glm::vec3 objectRotations[1]{};
+	uint64_t lastTime = SDL_GetTicks();
+
 	SDL_Window* m_window{ nullptr };
 	void createWindow(void);
 
@@ -156,7 +162,7 @@ private:
 	VkDeviceMemory m_indexBufferMemory{ VK_NULL_HANDLE };
 
 	void createUniformBuffers(void);
-	void updateUniformBuffer(const uint32_t &currentFrame);
+	void updateUniformBuffer(const uint32_t currentFrame);
 	std::vector<VkBuffer> m_uniformBuffers;
 	std::vector<VkDeviceMemory> m_uniformBuffersMemory;
 	std::vector<void*> m_uniformBuffersMapped;
@@ -179,6 +185,8 @@ private:
 	std::vector<VkFence> m_inFlightFences{};
 	uint32_t m_currentFrame{ 0 };
 	bool m_framebufferResized{ false };
+
+	void processInput(const SDL_Event &event);
 
 	void drawFrame(void);
 
