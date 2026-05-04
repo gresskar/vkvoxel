@@ -21,6 +21,7 @@
 
 #include "core.hpp"
 #include "voxel.hpp"
+#include "world.hpp"
 #include "ubo.hpp"
 
 #include <algorithm>
@@ -28,7 +29,6 @@
 #include <limits>
 #include <stdexcept>
 #include <vector>
-#include <unordered_map>
 
 void Core::createWindow(void)
 {
@@ -66,6 +66,10 @@ void Core::mainLoop(void)
 
 	while (should_run)
 	{
+		const uint64_t currentTime = SDL_GetTicks();
+		const float deltaTime = static_cast<float>(currentTime - lastTime) / 1000.0f;
+		lastTime = currentTime;
+
 		/* Handle events */
 		while (SDL_PollEvent(&event))
 		{
@@ -87,7 +91,8 @@ void Core::mainLoop(void)
 
 		}
 
-		/* Update state */
+		/* Update camera and uniform state */
+		updateCamera(deltaTime);
 		updateUniformBuffer(m_currentFrame);
 
 		/* Render frame */
@@ -173,6 +178,46 @@ void Core::createSurface(void)
 	}
 }
 
+Core::QueueFamilyIndices Core::findQueueFamilies(const VkPhysicalDevice &device) const
+{
+	QueueFamilyIndices indices{};
+
+	uint32_t queueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties2(device, &queueFamilyCount, VK_NULL_HANDLE);
+
+	if (queueFamilyCount == 0)
+	{
+		throw std::runtime_error("vkGetPhysicalDeviceQueueFamilyProperties2() failed to find any queue families!");
+	}
+
+	std::vector<VkQueueFamilyProperties2> queueFamilies(queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties2(device, &queueFamilyCount, queueFamilies.data());
+
+	for (uint32_t i = 0; i < queueFamilyCount; i++)
+	{
+		const VkQueueFamilyProperties2 &queueFamily = queueFamilies.at(i);
+
+		if (queueFamily.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			indices.graphicsFamily = i;
+		}
+
+		VkBool32 presentSupport = VK_FALSE;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
+		if (presentSupport == VK_TRUE)
+		{
+			indices.presentFamily = i;
+		}
+
+		if (indices.isComplete())
+		{
+			break;
+		}
+	}
+
+	return indices;
+}
+
 void Core::pickPhysicalDevice(void)
 {
 	/* Enumerate all Vulkan-compatible GPUs */
@@ -205,20 +250,17 @@ void Core::pickPhysicalDevice(void)
 		std::vector<VkExtensionProperties> extensions(extensionCount);
 		vkEnumerateDeviceExtensionProperties(physicalDevice, VK_NULL_HANDLE, &extensionCount, extensions.data());
 
-		/* Get the GPU's queue family properties */
-		uint32_t queueFamilyPropertyCount = 0;
-		VkQueueFamilyProperties2 queueFamilyProperties{};
-		queueFamilyProperties.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
-		vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyPropertyCount, &queueFamilyProperties);
-	
-		/* Skip GPUs that don't support Vulkan 1.3 */
-		if (properties.properties.apiVersion < VK_API_VERSION_1_3)
+		/* Find queue families that support graphics and presentation */
+		const QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+		/* Skip GPUs that don't support all required queue families */
+		if (!queueFamilyIndices.isComplete())
 		{
 			continue;
 		}
 
-		/* Skip GPUs that don't support graphic queue families */
-		if (!!(queueFamilyProperties.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT))
+		/* Skip GPUs that don't support Vulkan 1.3 */
+		if (properties.properties.apiVersion < VK_API_VERSION_1_3)
 		{
 			continue;
 		}
@@ -232,12 +274,13 @@ void Core::pickPhysicalDevice(void)
 
 		/* Skip GPUs that don't support presentation to a surface */
 		VkBool32 supportsSurface = VK_FALSE;
-		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, 0, m_surface, &supportsSurface);
+		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queueFamilyIndices.presentFamily, m_surface, &supportsSurface);
 		if (supportsSurface != VK_TRUE)
 		{
 			continue;
 		}
 
+		m_queueFamilyIndices = queueFamilyIndices;
 		m_physicalDevice = physicalDevice;
 		break;
 	}
@@ -253,14 +296,28 @@ void Core::createLogicalDevice(void)
 {
 	/* Define some information about the queue(s) we want to create for our logical device */
 	constexpr float queuePriorities = 1.0f;
-	const VkDeviceQueueCreateInfo queueCreateInfo = {
-		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.pNext = VK_NULL_HANDLE,
-		.flags = 0,
-		.queueFamilyIndex = 0, // TODO: find this
-		.queueCount = 1,
-		.pQueuePriorities = &queuePriorities,
-	};
+	std::vector<uint32_t> uniqueQueueFamilies = { m_queueFamilyIndices.graphicsFamily };
+	if (m_queueFamilyIndices.presentFamily != m_queueFamilyIndices.graphicsFamily)
+	{
+		uniqueQueueFamilies.push_back(m_queueFamilyIndices.presentFamily);
+	}
+
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+	queueCreateInfos.reserve(uniqueQueueFamilies.size());
+
+	for (uint32_t queueFamily : uniqueQueueFamilies)
+	{
+		const VkDeviceQueueCreateInfo queueCreateInfo = {
+			.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+			.pNext = VK_NULL_HANDLE,
+			.flags = 0,
+			.queueFamilyIndex = queueFamily,
+			.queueCount = 1,
+			.pQueuePriorities = &queuePriorities,
+		};
+
+		queueCreateInfos.push_back(queueCreateInfo);
+	}
 
 	/* Create a structure chain with the extensions we want to enable */
 	VkPhysicalDeviceFeatures deviceFeatures{};
@@ -303,8 +360,8 @@ void Core::createLogicalDevice(void)
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.pNext = &index_type_uint8_feature,
 		.flags = 0,
-		.queueCreateInfoCount = 1,
-		.pQueueCreateInfos = &queueCreateInfo,
+		.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
+		.pQueueCreateInfos = queueCreateInfos.data(),
 		.enabledLayerCount = 0,
 		.ppEnabledLayerNames = VK_NULL_HANDLE,
 		.enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtension.size()),
@@ -318,8 +375,8 @@ void Core::createLogicalDevice(void)
 	}
 
 	/* Get the logical device's queue(s) */
-	vkGetDeviceQueue(m_device, 0, 0, &m_graphicsQueue); // TODO: find queueFamilyIndex
-	vkGetDeviceQueue(m_device, 0, 0, &m_presentQueue);  // TODO: find queueFamilyIndex
+	vkGetDeviceQueue(m_device, m_queueFamilyIndices.graphicsFamily, 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_device, m_queueFamilyIndices.presentFamily, 0, &m_presentQueue);
 
 	/* Load the logical device */
 	volkLoadDevice(m_device);
@@ -392,7 +449,9 @@ void Core::createSwapChain(void)
 	}
 
 	/* Define some information about our swap chain */
-	//const std::array<uint32_t, 2> queueFamilyIndices = { 0, 1 };
+	const bool useConcurrentSharing = m_queueFamilyIndices.graphicsFamily != m_queueFamilyIndices.presentFamily;
+	const std::array<uint32_t, 2> queueFamilyIndices = { m_queueFamilyIndices.graphicsFamily, m_queueFamilyIndices.presentFamily };
+
 	const VkSwapchainCreateInfoKHR createInfo = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.pNext = VK_NULL_HANDLE,
@@ -404,9 +463,9 @@ void Core::createSwapChain(void)
 		.imageExtent = m_swapChainExtent,
 		.imageArrayLayers = 1,
 		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE, // or VK_SHARING_MODE_CONCURRENT, depending on if graphicsFamily == presentFamily
-		.queueFamilyIndexCount = 0, // 2 if imageSharingMode is CONCURRENT, 0 if EXCLUSIVE
-		.pQueueFamilyIndices = VK_NULL_HANDLE, // queueFamilyIndices if CONCURRENT, VK_NULL_HANDLE if EXCLUSIVE
+		.imageSharingMode = useConcurrentSharing ? VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = useConcurrentSharing ? static_cast<uint32_t>(queueFamilyIndices.size()) : 0,
+		.pQueueFamilyIndices = useConcurrentSharing ? queueFamilyIndices.data() : VK_NULL_HANDLE,
 		.preTransform = m_swapChainCapabilities.currentTransform,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		.presentMode = m_swapChainPresentMode,
@@ -807,7 +866,7 @@ void Core::createCommandPool(void)
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.pNext = VK_NULL_HANDLE,
 		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-		.queueFamilyIndex = 0, // TODO: use graphics family queue index
+		.queueFamilyIndex = m_queueFamilyIndices.graphicsFamily,
 	};
 
 	if (vkCreateCommandPool(m_device, &createInfo, VK_NULL_HANDLE, &m_cmdPool) != VK_SUCCESS)
@@ -1142,45 +1201,11 @@ void Core::createTextureSampler(void)
 
 void Core::loadModel(void)
 {
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-    std::string err;
+	World world;
+	world.generateTerrain(16, 16, 6);
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str()))
-	{
-        throw std::runtime_error(err);
-    }
-
-	std::unordered_map<Voxel, uint16_t> uniqueVertices{};
-
-	for (const auto &shape : shapes)
-	{
-		for (const auto &index : shape.mesh.indices)
-		{
-			Voxel voxel{};
-
-			voxel.position = {
-				attrib.vertices[3 * index.vertex_index + 0],
-				attrib.vertices[3 * index.vertex_index + 1],
-				attrib.vertices[3 * index.vertex_index + 2]
-			};
-
-			voxel.color = {1.0f, 1.0f, 1.0f};
-
-			voxel.texCoord = {
-				attrib.texcoords[2 * index.texcoord_index + 0],
-				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-			};
-
-			if (uniqueVertices.count(voxel) == 0) {
-				uniqueVertices[voxel] = static_cast<uint32_t>(m_vertices.size());
-				m_vertices.push_back(voxel);
-			}
-
-			m_indices.push_back(uniqueVertices[voxel]);
-		}
-	}
+	m_vertices = std::move(world.vertices);
+	m_indices = std::move(world.indices);
 }
 
 uint32_t Core::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -1368,21 +1393,61 @@ void Core::createUniformBuffers(void)
 	}
 }
 
+void Core::updateCamera(const float deltaTime)
+{
+	const float velocity = camSpeed * deltaTime;
+	
+	const glm::vec3 front = glm::normalize(
+		glm::vec3(
+		glm::cos(glm::radians(camPitch)) * glm::cos(glm::radians(camYaw)),
+		glm::sin(glm::radians(camPitch)),
+		glm::cos(glm::radians(camPitch)) * glm::sin(glm::radians(camYaw))
+	));
+
+	const glm::vec3 right = glm::normalize(glm::cross(front, camUp));
+
+	if (m_moveForward)
+	{
+		camPos += front * velocity;
+	}
+	
+	if (m_moveBackward)
+	{
+		camPos -= front * velocity;
+	}
+	
+	if (m_moveLeft)
+	{
+		camPos -= right * velocity;
+	}
+	
+	if (m_moveRight)
+	{
+		camPos += right * velocity;
+	}
+	
+	if (m_moveUp)
+	{
+		camPos += camUp * velocity;
+	}
+	
+	if (m_moveDown)
+	{
+		camPos -= camUp * velocity;
+	}
+
+	camFront = front;
+}
+
 void Core::updateUniformBuffer(const uint32_t currentFrame)
 {
 	UniformBufferObject ubo {};
 
-	//ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)) * glm::mat4_cast(glm::quat(objectRotations[0]));
-
-	//ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.view = glm::translate(glm::mat4(1.0f), camPos);
+	ubo.model = glm::mat4(1.0f);
+	ubo.view = glm::lookAt(camPos, camPos + camFront, camUp);
 
 	ubo.projection = glm::perspective(glm::radians(45.0f),  static_cast<float>(m_swapChainExtent.width) / static_cast<float>(m_swapChainExtent.height), 0.1f, 32.0f);
 	ubo.projection[1][1] *= -1;
-
-
-	// glm::vec3(camCoo.x + glm::sin(camOri.y)/4*myMove, camCoo.y + glm::cos(camOri.y)/4*myMove, camCoo.z);
 
 	memcpy(m_uniformBuffersMapped.at(currentFrame), &ubo, sizeof(ubo));
 }
@@ -1656,7 +1721,7 @@ void Core::recordCommandBuffer(const uint32_t imageIndex)
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 	VkDeviceSize offset = 0;
 	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &m_vertexBuffer, &offset);
-	vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 	/* Bind descriptor set */
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets.at(m_currentFrame), 0, VK_NULL_HANDLE);
@@ -1681,7 +1746,7 @@ void Core::recordCommandBuffer(const uint32_t imageIndex)
 	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 	/* Draw */
-	vkCmdDrawIndexed(cmdBuffer, static_cast<uint16_t>(m_indices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
 	
 	/* End rendering */
 	vkCmdEndRendering(cmdBuffer);
@@ -1757,39 +1822,83 @@ void Core::createSyncObjects(void)
 
 void Core::processInput(const SDL_Event &event)
 {
-	const float elapsedTime = (SDL_GetTicks() - lastTime) / 1000.0f;
-	lastTime = SDL_GetTicks();
-
 	if (event.type == SDL_EVENT_KEY_DOWN)
 	{
 		switch (event.key.key)
 		{
 			case SDLK_W:
+				m_moveForward = true;
 				break;
 			case SDLK_A:
+				m_moveLeft = true;
 				break;
 			case SDLK_S:
+				m_moveBackward = true;
 				break;
 			case SDLK_D:
+				m_moveRight = true;
 				break;
 			case SDLK_SPACE:
+				m_moveUp = true;
 				break;
 			case SDLK_LCTRL:
+				m_moveDown = true;
+				break;
+			case SDLK_ESCAPE:
+				/* TODO: make all of these if-statements a toggle function */
+				if (SDL_GetWindowRelativeMouseMode(m_window))
+				{
+					SDL_SetWindowRelativeMouseMode(m_window, false);
+				}
+				else
+				{
+					SDL_SetWindowRelativeMouseMode(m_window, true);
+				}
+				
+				if (!SDL_CursorVisible())
+				{
+					SDL_ShowCursor();
+				}
+				else
+				{
+					SDL_HideCursor();
+				}
 				break;
 			default:
 				break;
 		}
 	}
-
+	else if (event.type == SDL_EVENT_KEY_UP)
+	{
+		switch (event.key.key)
+		{
+			case SDLK_W:
+				m_moveForward = false;
+				break;
+			case SDLK_A:
+				m_moveLeft = false;
+				break;
+			case SDLK_S:
+				m_moveBackward = false;
+				break;
+			case SDLK_D:
+				m_moveRight = false;
+				break;
+			case SDLK_SPACE:
+				m_moveUp = false;
+				break;
+			case SDLK_LCTRL:
+				m_moveDown = false;
+				break;
+			default:
+				break;
+		}
+	}
 	else if (event.type == SDL_EVENT_MOUSE_MOTION)
 	{
-		objectRotations[0].x -= event.motion.yrel * elapsedTime;
-		objectRotations[0].y += event.motion.xrel * elapsedTime;
-	}
-
-	else if (event.type == SDL_EVENT_MOUSE_WHEEL)
-	{
-		camPos.z += event.wheel.y * elapsedTime * 10.0f;
+		camYaw += static_cast<float>(event.motion.xrel) * mouseSensitivity;
+		camPitch -= static_cast<float>(event.motion.yrel) * mouseSensitivity;
+		camPitch = glm::clamp(camPitch, -89.0f, 89.0f);
 	}
 }
 

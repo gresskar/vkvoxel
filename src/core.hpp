@@ -4,6 +4,7 @@
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_timer.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -68,8 +69,21 @@ private:
 	}
 
 private:
-	glm::vec3 camPos { 0.0f, 0.0f, -6.0f };
-	glm::vec3 objectRotations[1]{};
+	glm::vec3 camPos { -0.25f, -0.25f, -10.0f };
+	glm::vec3 camFront { 0.0f, +0.0f, +1.0f };
+	glm::vec3 camUp { +0.0f, +1.0f, +0.0f };
+	float camYaw = 90.0f;
+	float camPitch = 0.0f;
+	float camSpeed = 4.0f;
+	float mouseSensitivity = 0.1f;
+
+	bool m_moveForward = false;
+	bool m_moveBackward = false;
+	bool m_moveLeft = false;
+	bool m_moveRight = false;
+	bool m_moveUp = false;
+	bool m_moveDown = false;
+
 	uint64_t lastTime = SDL_GetTicks();
 
 	SDL_Window* m_window{ nullptr };
@@ -84,6 +98,20 @@ private:
 	
 	void createSurface(void);
 	VkSurfaceKHR m_surface{ VK_NULL_HANDLE };
+
+	struct QueueFamilyIndices
+	{
+		uint32_t graphicsFamily = UINT32_MAX;
+		uint32_t presentFamily = UINT32_MAX;
+
+		[[nodiscard]] bool isComplete() const
+		{
+			return graphicsFamily != UINT32_MAX && presentFamily != UINT32_MAX;
+		}
+	};
+
+	QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice &device) const;
+	QueueFamilyIndices m_queueFamilyIndices{};
 
 	void pickPhysicalDevice(void);
 	VkPhysicalDevice m_physicalDevice{ VK_NULL_HANDLE };
@@ -146,7 +174,7 @@ private:
 
 	void loadModel(void);
 	std::vector<Voxel> m_vertices;
-	std::vector<uint16_t> m_indices;
+	std::vector<uint32_t> m_indices;
 
 	// helper function for CreateVertexBuffer() and createIndexBuffer()
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -187,6 +215,7 @@ private:
 	bool m_framebufferResized{ false };
 
 	void processInput(const SDL_Event &event);
+	void updateCamera(const float deltaTime);
 
 	void drawFrame(void);
 
