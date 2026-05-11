@@ -74,21 +74,21 @@ Now double-click on the `.slnx` file to load the project
 ### 2.2. Linux
 
 ```Bash
-git clone https://github.com/gresskar/vkvoxel ~/.build/vkvoxel
+git clone https://github.com/gresskar/vkvoxel ~/.build/vkvoxel/
 
-cd ~/.build/vkvoxel
+cd ~/.build/vkvoxel/
 
 premake5 ninja
 
-ninja # or `ninja Debug`
+ninja Release # or `ninja Debug`
 ```
 
 ## 3. Graphics debugging
 
-*Assuming project is cloned into `~/.build/vkvoxel`:*
+*Assuming project is cloned into `~/.build/vkvoxel/`:*
 
 ```Bash
-SDL_VIDEO_DRIVER=x11 renderdoccmd capture -d ~/.build/vkvoxel -c vkvoxel ~/.build/vkvoxel/bin/Release/vkvoxel
+SDL_VIDEO_DRIVER=x11 renderdoccmd capture -d ~/.build/vkvoxel/ -c vkvoxel ~/.build/vkvoxel/bin/Release/vkvoxel
 ```
 
 This will launch the program - press `F12` or `PrtSc` to capture a frame.
@@ -122,3 +122,7 @@ Finally generate a `compile_commands.json` file with the command: `premake5 ninj
 First of all install `lldb` through your package manager
 
 Then install the [LLDB DAP](https://open-vsx.org/vscode/item?itemName=llvm-vs-code-extensions.lldb-dap) extension through VS Code
+
+> *Why are my changes sometimes not taking effect after rebuilding?*
+
+Try to clear generated object files: `rm -rf bin/ obj/`

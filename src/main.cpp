@@ -1,4 +1,4 @@
-#include "core.hpp"
+#include "app.hpp"
 
 #include <cstdlib>
 #include <exception>
@@ -7,10 +7,10 @@
 int main(void)
 {
 	try {
-		Core app;
+		App app;
 		app.run();
 	}
-	catch (const std::exception& e)
+	catch (const std::exception &e)
 	{
 		std::println("{}", e.what());
 		return EXIT_FAILURE;
