@@ -6,9 +6,9 @@
 #include <string>
 #include <vector>
 
-#include "camera.hpp"
-#include "voxel.hpp"
-#include "world.hpp"
+#include "camera/camera.hpp"
+#include "renderer/voxel.hpp"
+#include "world/world.hpp"
 
 class Renderer
 {

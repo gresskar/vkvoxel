@@ -4,7 +4,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "camera.hpp"
+#include "camera/camera.hpp"
 
 
 void Camera::processEvent(const SDL_Event &event, SDL_Window *window)

@@ -1,5 +1,5 @@
 CompileFlags:
-    Add: [-std=c++23, -Wall, -Wextra, -Wpedantic]
+    Add: [-std=c++23, -Wall, -Wextra, -Wpedantic, -Isrc, Ivendor]
 
 Completion:
     HeaderInsertion: Never

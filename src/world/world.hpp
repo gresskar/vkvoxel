@@ -1,6 +1,7 @@
 #pragma once
 
-#include "voxel.hpp"
+#include "renderer/voxel.hpp"
+
 #include <vector>
 #include <cstdint>
 #include <glm/glm.hpp>

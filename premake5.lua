@@ -18,8 +18,8 @@ workspace "vkvoxel"
       { vulkan_sdk .. "/bin/slangc ./shaders/shader.slang -target spirv -profile spirv_1_6 -emit-spirv-directly -fvk-use-entrypoint-name -entry vertMain -entry fragMain -o ./shaders/shader.slang.spv" }
    }
 
-   includedirs { vulkan_sdk .. "/include" }
-   files { "src/*.hpp", "src/*.cpp" }
+   includedirs { "src/", "vendor/", vulkan_sdk .. "/include" }
+   files { "src/**.hpp", "src/**.cpp" }
    libdirs { vulkan_sdk .. "/lib" }
    links { "SDL3", "volk" }
 

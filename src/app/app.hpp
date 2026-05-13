@@ -2,9 +2,9 @@
 
 #include <SDL3/SDL_video.h>
 
-#include "camera.hpp"
-#include "renderer.hpp"
-#include "world.hpp"
+#include "camera/camera.hpp"
+#include "renderer/renderer.hpp"
+#include "world/world.hpp"
 
 class App
 {

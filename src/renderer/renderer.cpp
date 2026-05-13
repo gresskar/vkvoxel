@@ -1,4 +1,3 @@
-#include "ubo.hpp"
 #define VOLK_IMPLEMENTATION
 #include <volk/volk.h>
 
@@ -17,7 +16,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-#include "renderer.hpp"
+#include "renderer/renderer.hpp"
+#include "ubo.hpp"
 
 #include <algorithm>
 #include <array>
