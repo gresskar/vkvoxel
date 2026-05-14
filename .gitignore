@@ -12,5 +12,6 @@ Makefile
 *.rdc
 *.slnx
 *.vcxproj
+*.vcxproj.filters
 *.vcxproj.user
 *.workspace
