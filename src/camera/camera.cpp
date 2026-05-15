@@ -156,7 +156,7 @@ glm::mat4 Camera::viewMatrix(void) const
 
 glm::mat4 Camera::projectionMatrix(const float aspectRatio) const
 {
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 32.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 1500.0f);
     
     /* GLM is originally for OpenGL, so for everything to not be upside down in Vulkan we must reverse the projection matrix */
     projection[1][1] *= -1;

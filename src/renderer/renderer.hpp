@@ -28,6 +28,7 @@ public:
     void cleanup(void);
 
     void drawFrame(void);
+    void updateWorldMesh(World::Mesh mesh);
     void updateUniformBuffer(const Camera &camera);
     void setFramebufferResized(bool resized);
     void waitIdle(void) const;
@@ -114,6 +115,7 @@ private:
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkDeviceSize &size);
+    void destroyGeometryBuffers(void);
     
     void createVertexBuffer(void);
     VkBuffer m_vertexBuffer{ VK_NULL_HANDLE };

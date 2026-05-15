@@ -16,14 +16,14 @@ public:
     glm::mat4 projectionMatrix(const float aspectRatio) const;
 
 private:
-    glm::vec3 m_position { -0.25f, -0.25f, -10.0f };
-    glm::vec3 m_front { 0.0f, 0.0f, 1.0f };
+    glm::vec3 m_position { 0.0f, 44.0f, -96.0f };
+    glm::vec3 m_front { 0.0f, -0.24f, 0.97f };
     glm::vec3 m_up { 0.0f, 1.0f, 0.0f };
 
     float m_yaw = 90.0f;
-    float m_pitch = 0.0f;
+    float m_pitch = -14.0f;
     
-    float m_speed = 4.0f;
+    float m_speed = 32.0f;
     float m_mouseSensitivity = 0.1f;
 
     bool m_moveForward = false;

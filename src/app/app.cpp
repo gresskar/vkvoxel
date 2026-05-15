@@ -4,8 +4,10 @@
 #include <SDL3/SDL_timer.h>
 #include <SDL3/SDL_video.h>
 
+#include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 constexpr int WIDTH = 1280;
 constexpr int HEIGHT = 720;
@@ -13,7 +15,17 @@ constexpr int HEIGHT = 720;
 void App::run(void)
 {
     createWindow();
-    m_world.generateTerrain(16, 16, 6);
+
+    const World::GenerationSettings settings =
+    {
+        .seed = 12081973,
+        .chunkColumnsX = 32,
+        .chunkColumnsZ = 16,
+        .enableLevelOfDetail = false,
+    };
+
+    m_world.requestChunkGeneration(settings);
+
     m_renderer.init(m_window, m_world);
     m_lastTime = SDL_GetTicks();
     mainLoop();
@@ -81,13 +93,17 @@ void App::mainLoop(void)
 
         /* Update camera and uniform state */
         m_camera.update(deltaTime);
+
+        World::Mesh generatedMesh;
+        if (m_world.consumeGeneratedMesh(generatedMesh))
+        {
+            m_renderer.updateWorldMesh(std::move(generatedMesh));
+        }
+
         m_renderer.updateUniformBuffer(m_camera);
         
         /* Render frame */
         m_renderer.drawFrame();
-        
-        /* Wait for the GPU to finish what it's doing before proceeding */
-        m_renderer.waitIdle();
     }
 }
 

@@ -24,6 +24,7 @@
 #include <fstream>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 static const std::vector<const char *> requiredDeviceExtensions = {
@@ -109,29 +110,7 @@ void Renderer::cleanup(void)
         m_cmdPool = VK_NULL_HANDLE;
     }
 
-    if (m_vertexBuffer != VK_NULL_HANDLE)
-    {
-        vkDestroyBuffer(m_device, m_vertexBuffer, VK_NULL_HANDLE);
-        m_vertexBuffer = VK_NULL_HANDLE;
-    }
-
-    if (m_indexBuffer != VK_NULL_HANDLE)
-    {
-        vkDestroyBuffer(m_device, m_indexBuffer, VK_NULL_HANDLE);
-        m_indexBuffer = VK_NULL_HANDLE;
-    }
-
-    if (m_vertexBufferMemory != VK_NULL_HANDLE)
-    {
-        vkFreeMemory(m_device, m_vertexBufferMemory, VK_NULL_HANDLE);
-        m_vertexBufferMemory = VK_NULL_HANDLE;
-    }
-
-    if (m_indexBufferMemory != VK_NULL_HANDLE)
-    {
-        vkFreeMemory(m_device, m_indexBufferMemory, VK_NULL_HANDLE);
-        m_indexBufferMemory = VK_NULL_HANDLE;
-    }
+    destroyGeometryBuffers();
 
     if (m_graphicsPipeline != VK_NULL_HANDLE)
     {
@@ -285,6 +264,25 @@ void Renderer::drawFrame(void)
     }
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void Renderer::updateWorldMesh(World::Mesh mesh)
+{
+    if (m_device == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    if (vkDeviceWaitIdle(m_device) != VK_SUCCESS)
+    {
+        throw std::runtime_error("vkDeviceWaitIdle() failed!");
+    }
+
+    destroyGeometryBuffers();
+    m_vertices = std::move(mesh.vertices);
+    m_indices = std::move(mesh.indices);
+    createVertexBuffer();
+    createIndexBuffer();
 }
 
 void Renderer::updateUniformBuffer(const Camera &camera)
@@ -1262,7 +1260,7 @@ void Renderer::createTextureImage(void)
     int texWidth = 0;
     int texHeight = 0;
     int texChannels = 0;
-    stbi_uc *pixels = stbi_load("resources/textures/grass_block_side.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    stbi_uc *pixels = stbi_load("resources/textures/atlas.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     if (!pixels)
     {
         throw std::runtime_error("stbi_load() failed!");
@@ -1302,14 +1300,14 @@ void Renderer::createTextureSampler()
         .flags = 0,
         .magFilter = VK_FILTER_LINEAR,
         .minFilter = VK_FILTER_LINEAR,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
         .mipLodBias = 0.0f,
-        .anisotropyEnable = VK_TRUE,
-        .maxAnisotropy = 2.0f,
-        .compareEnable = VK_TRUE,
+        .anisotropyEnable = VK_FALSE,
+        .maxAnisotropy = 1.0f,
+        .compareEnable = VK_FALSE,
         .compareOp = VK_COMPARE_OP_ALWAYS,
         .minLod = 0.0f,
         .maxLod = 0.0f,
@@ -1441,13 +1439,41 @@ void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, const VkDevice
     vkFreeCommandBuffers(m_device, m_cmdPool, 1, &cmdBuffer);
 }
 
+void Renderer::destroyGeometryBuffers(void)
+{
+    if (m_vertexBuffer != VK_NULL_HANDLE)
+    {
+        vkDestroyBuffer(m_device, m_vertexBuffer, VK_NULL_HANDLE);
+        m_vertexBuffer = VK_NULL_HANDLE;
+    }
+
+    if (m_indexBuffer != VK_NULL_HANDLE)
+    {
+        vkDestroyBuffer(m_device, m_indexBuffer, VK_NULL_HANDLE);
+        m_indexBuffer = VK_NULL_HANDLE;
+    }
+
+    if (m_vertexBufferMemory != VK_NULL_HANDLE)
+    {
+        vkFreeMemory(m_device, m_vertexBufferMemory, VK_NULL_HANDLE);
+        m_vertexBufferMemory = VK_NULL_HANDLE;
+    }
+
+    if (m_indexBufferMemory != VK_NULL_HANDLE)
+    {
+        vkFreeMemory(m_device, m_indexBufferMemory, VK_NULL_HANDLE);
+        m_indexBufferMemory = VK_NULL_HANDLE;
+    }
+}
+
 void Renderer::createVertexBuffer(void)
 {
-    const VkDeviceSize bufferSize = sizeof(m_vertices.at(0)) * m_vertices.size();
-    if (bufferSize == 0)
+    if (m_vertices.empty())
     {
-        throw std::runtime_error("createVertexBuffer(): bufferSize is 0!");
+        return;
     }
+
+    const VkDeviceSize bufferSize = sizeof(m_vertices.at(0)) * m_vertices.size();
 
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
@@ -1467,6 +1493,11 @@ void Renderer::createVertexBuffer(void)
 
 void Renderer::createIndexBuffer(void)
 {
+    if (m_indices.empty())
+    {
+        return;
+    }
+
     const VkDeviceSize bufferSize = sizeof(m_indices.at(0)) * m_indices.size();
 
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
@@ -1740,9 +1771,6 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
 
     vkCmdBeginRendering(cmdBuffer, &renderingInfo);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-    VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &m_vertexBuffer, &offset);
-    vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets.at(m_currentFrame), 0, VK_NULL_HANDLE);
 
     const VkViewport viewport = {
@@ -1761,7 +1789,14 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     };
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-    vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
+    if (!m_indices.empty() && m_vertexBuffer != VK_NULL_HANDLE && m_indexBuffer != VK_NULL_HANDLE)
+    {
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &m_vertexBuffer, &offset);
+        vkCmdBindIndexBuffer(cmdBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
+    }
+
     vkCmdEndRendering(cmdBuffer);
 
     transition_image_layout(
