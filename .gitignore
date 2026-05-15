@@ -1,5 +1,6 @@
 .cache/
 .vs/
+.vscode/c_cpp_properties.json
 bin/
 obj/
 shaders/*.spv
